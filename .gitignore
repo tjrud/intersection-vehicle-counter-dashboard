@@ -24,6 +24,7 @@
 .codex-remote-attachments/
 .pnpm-store/
 .dev-*.log
+site-package.tar.gz
 
 # debug
 npm-debug.log*

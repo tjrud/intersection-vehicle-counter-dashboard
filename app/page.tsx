@@ -17,44 +17,82 @@ const positions = [
   { id: 3, area: "s3", direction: "북서 방향" },
 ] as const;
 
-type Counts = Record<number, number>;
+type LaneCounts = Record<number, number[]>;
+type LaneSettings = Record<number, number>;
+type ActiveLanes = Record<number, number>;
 
-const emptyCounts = (): Counts =>
-  Object.fromEntries(positions.map(({ id }) => [id, 0])) as Counts;
+const makeRecord = <T,>(factory: () => T) =>
+  Object.fromEntries(positions.map(({ id }) => [id, factory()])) as Record<number, T>;
+
+const emptyLaneCounts = (): LaneCounts => makeRecord(() => [0, 0, 0, 0, 0, 0]);
+const defaultLaneSettings = (): LaneSettings => makeRecord(() => 1);
+const defaultActiveLanes = (): ActiveLanes => makeRecord(() => 0);
 
 export default function Home() {
-  const [counts, setCounts] = useState<Counts>(emptyCounts);
+  const [laneCounts, setLaneCounts] = useState<LaneCounts>(emptyLaneCounts);
+  const [laneSettings, setLaneSettings] = useState<LaneSettings>(defaultLaneSettings);
+  const [activeLanes, setActiveLanes] = useState<ActiveLanes>(defaultActiveLanes);
   const [ready, setReady] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("intersection-counts");
-      if (saved) setCounts({ ...emptyCounts(), ...JSON.parse(saved) });
+      const savedV2 = localStorage.getItem("intersection-lane-counts-v2");
+      if (savedV2) {
+        const parsed = JSON.parse(savedV2);
+        setLaneCounts({ ...emptyLaneCounts(), ...parsed.laneCounts });
+        setLaneSettings({ ...defaultLaneSettings(), ...parsed.laneSettings });
+      } else {
+        const oldCounts = localStorage.getItem("intersection-counts");
+        if (oldCounts) {
+          const parsed = JSON.parse(oldCounts) as Record<number, number>;
+          setLaneCounts(
+            Object.fromEntries(
+              positions.map(({ id }) => [id, [parsed[id] ?? 0, 0, 0, 0, 0, 0]]),
+            ) as LaneCounts,
+          );
+        }
+      }
     } catch {
-      // Use fresh values when saved browser data cannot be read.
+      // Start with fresh values if saved browser data is unavailable.
     }
     setReady(true);
   }, []);
 
   useEffect(() => {
-    if (ready) localStorage.setItem("intersection-counts", JSON.stringify(counts));
-  }, [counts, ready]);
+    if (ready) {
+      localStorage.setItem(
+        "intersection-lane-counts-v2",
+        JSON.stringify({ laneCounts, laneSettings }),
+      );
+    }
+  }, [laneCounts, laneSettings, ready]);
+
+  const directionTotal = (id: number) =>
+    laneCounts[id].slice(0, laneSettings[id]).reduce((sum, count) => sum + count, 0);
 
   const total = useMemo(
-    () => Object.values(counts).reduce((sum, count) => sum + count, 0),
-    [counts],
+    () => positions.reduce((sum, { id }) => sum + directionTotal(id), 0),
+    [laneCounts, laneSettings],
   );
 
   const changeCount = (id: number, amount: number) => {
-    setCounts((current) => ({
+    const lane = activeLanes[id];
+    setLaneCounts((current) => ({
       ...current,
-      [id]: Math.max(0, current[id] + amount),
+      [id]: current[id].map((count, index) =>
+        index === lane ? Math.max(0, count + amount) : count,
+      ),
     }));
   };
 
+  const changeLaneCount = (id: number, count: number) => {
+    setLaneSettings((current) => ({ ...current, [id]: count }));
+    setActiveLanes((current) => ({ ...current, [id]: Math.min(current[id], count - 1) }));
+  };
+
   const resetAll = () => {
-    setCounts(emptyCounts());
+    setLaneCounts(emptyLaneCounts());
     setConfirmReset(false);
   };
 
@@ -72,7 +110,12 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="counter-panel" aria-label="방향별 차량 카운터">
+      <div className="lane-guide">
+        <span className="guide-icon">i</span>
+        번호별 <strong>차선 수</strong>를 정한 뒤, 집계할 차선을 눌러 선택하세요.
+      </div>
+
+      <section className="counter-panel" aria-label="방향과 차선별 차량 카운터">
         <div className="intersection" aria-hidden="true">
           <div className="road vertical-road" />
           <div className="road horizontal-road" />
@@ -83,47 +126,82 @@ export default function Home() {
           </div>
         </div>
 
-        {positions.map(({ id, area, direction }) => (
-          <article className={`counter counter-${area}`} key={id}>
-            <div className="counter-heading">
-              <span className="number-badge">{id}</span>
-              <span className="direction-label">{direction}</span>
-            </div>
-            <output aria-label={`${id}번 현재 ${counts[id]}대`}>
-              {counts[id].toLocaleString()}
-            </output>
-            <div className="controls">
-              <button
-                type="button"
-                className="minus"
-                onClick={() => changeCount(id, -1)}
-                disabled={counts[id] === 0}
-                aria-label={`${id}번 차량 1대 빼기`}
-              >
-                −
-              </button>
-              <button
-                type="button"
-                className="plus"
-                onClick={() => changeCount(id, 1)}
-                aria-label={`${id}번 차량 1대 추가`}
-              >
-                +
-              </button>
-            </div>
-          </article>
-        ))}
+        {positions.map(({ id, area, direction }) => {
+          const activeLane = activeLanes[id];
+          const lanes = laneCounts[id];
+          return (
+            <article className={`counter counter-${area}`} key={id}>
+              <div className="counter-heading">
+                <span className="number-badge">{id}</span>
+                <span className="direction-label">{direction}</span>
+                <label className="lane-count-select">
+                  <span>차선 수</span>
+                  <select
+                    value={laneSettings[id]}
+                    onChange={(event) => changeLaneCount(id, Number(event.target.value))}
+                    aria-label={`${id}번 차선 수`}
+                  >
+                    {[1, 2, 3, 4, 5, 6].map((count) => (
+                      <option value={count} key={count}>{count}개</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="lane-tabs" role="tablist" aria-label={`${id}번 집계 차선 선택`}>
+                {lanes.slice(0, laneSettings[id]).map((count, index) => (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeLane === index}
+                    className={activeLane === index ? "active" : ""}
+                    onClick={() => setActiveLanes((current) => ({ ...current, [id]: index }))}
+                    key={index}
+                  >
+                    <span>{index + 1}차선</span>
+                    <b>{count}</b>
+                  </button>
+                ))}
+              </div>
+
+              <div className="count-row">
+                <div className="count-readout">
+                  <small>{activeLane + 1}차선</small>
+                  <output aria-label={`${id}번 ${activeLane + 1}차선 현재 ${lanes[activeLane]}대`}>
+                    {lanes[activeLane].toLocaleString()}
+                  </output>
+                  {laneSettings[id] > 1 && <em>합계 {directionTotal(id)}</em>}
+                </div>
+                <div className="controls">
+                  <button
+                    type="button"
+                    className="minus"
+                    onClick={() => changeCount(id, -1)}
+                    disabled={lanes[activeLane] === 0}
+                    aria-label={`${id}번 ${activeLane + 1}차선 차량 1대 빼기`}
+                  >−</button>
+                  <button
+                    type="button"
+                    className="plus"
+                    onClick={() => changeCount(id, 1)}
+                    aria-label={`${id}번 ${activeLane + 1}차선 차량 1대 추가`}
+                  >+</button>
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </section>
 
       <footer className="footer-bar">
-        <p><span>●</span> 값은 이 기기에 자동 저장됩니다</p>
+        <p><span>●</span> 차선 설정과 값은 이 기기에 자동 저장됩니다</p>
         {!confirmReset ? (
           <button type="button" className="reset-button" onClick={() => setConfirmReset(true)}>
             전체 초기화
           </button>
         ) : (
           <div className="reset-confirm" role="group" aria-label="전체 초기화 확인">
-            <span>정말 지울까요?</span>
+            <span>모든 차선 값을 지울까요?</span>
             <button type="button" onClick={() => setConfirmReset(false)}>취소</button>
             <button type="button" className="danger" onClick={resetAll}>초기화</button>
           </div>
