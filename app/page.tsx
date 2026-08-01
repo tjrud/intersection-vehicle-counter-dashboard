@@ -50,6 +50,7 @@ export default function Home() {
   const [theme, setTheme] = useState<Theme>("light");
   const [soundOn, setSoundOn] = useState(false);
   const [soundName, setSoundName] = useState<SoundName>("click");
+  const [volume, setVolume] = useState(60);
 
   useEffect(() => {
     try {
@@ -64,6 +65,7 @@ export default function Home() {
         setTheme(["light", "dark", "green"].includes(parsed.theme) ? parsed.theme : "light");
         setSoundOn(Boolean(parsed.soundOn));
         setSoundName(["click", "clack", "soft"].includes(parsed.soundName) ? parsed.soundName : "click");
+        setVolume(typeof parsed.volume === "number" ? Math.min(100, Math.max(0, parsed.volume)) : 60);
       }
     } catch {
       // Start with a clean record when browser storage cannot be read.
@@ -72,8 +74,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (ready) localStorage.setItem("intersection-timed-records-v1", JSON.stringify({ records, drafts, mode, date, slot, theme, soundOn, soundName }));
-  }, [records, drafts, mode, date, slot, theme, soundOn, soundName, ready]);
+    if (ready) localStorage.setItem("intersection-timed-records-v1", JSON.stringify({ records, drafts, mode, date, slot, theme, soundOn, soundName, volume }));
+  }, [records, drafts, mode, date, slot, theme, soundOn, soundName, volume, ready]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -99,20 +101,20 @@ export default function Home() {
       oscillator.type = "sine";
       oscillator.frequency.setValueAtTime(760, now);
       oscillator.frequency.exponentialRampToValueAtTime(420, now + 0.045);
-      gain.gain.setValueAtTime(0.11, now);
+      gain.gain.setValueAtTime(0.11 * (volume / 100), now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
       oscillator.start(now); oscillator.stop(now + 0.06);
     } else if (soundName === "clack") {
       oscillator.type = "square";
       oscillator.frequency.setValueAtTime(190, now);
       oscillator.frequency.exponentialRampToValueAtTime(95, now + 0.065);
-      gain.gain.setValueAtTime(0.075, now);
+      gain.gain.setValueAtTime(0.075 * (volume / 100), now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
       oscillator.start(now); oscillator.stop(now + 0.085);
     } else {
       oscillator.type = "sine";
       oscillator.frequency.setValueAtTime(440, now);
-      gain.gain.setValueAtTime(0.065, now);
+      gain.gain.setValueAtTime(0.065 * (volume / 100), now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
       oscillator.start(now); oscillator.stop(now + 0.13);
     }
@@ -232,6 +234,7 @@ export default function Home() {
               </div></fieldset>
               <fieldset><legend>버튼 소리</legend><label className="sound-toggle"><span><b>소리 사용</b><small>− / + 버튼을 누를 때 재생</small></span><input type="checkbox" checked={soundOn} onChange={(e) => setSoundOn(e.target.checked)} /><i /></label>
                 <div className="sound-options">{(["click", "clack", "soft"] as SoundName[]).map((name) => <button type="button" key={name} disabled={!soundOn} className={soundName === name ? "selected" : ""} onClick={() => setSoundName(name)}>{name === "click" ? "클릭" : name === "clack" ? "딸칵" : "부드러운 톤"}</button>)}</div>
+                <label className={`volume-control ${!soundOn ? "disabled" : ""}`}><span><b>볼륨</b><output>{volume}%</output></span><input type="range" min="0" max="100" step="5" value={volume} disabled={!soundOn} onChange={(e) => setVolume(Number(e.target.value))} aria-label="버튼 소리 볼륨" /></label>
                 <button type="button" className="sound-preview" disabled={!soundOn} onClick={() => playSound(true)}>소리 미리 듣기</button>
               </fieldset>
             </div>
