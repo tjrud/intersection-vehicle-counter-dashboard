@@ -52,6 +52,7 @@ export default function Home() {
   const [soundName, setSoundName] = useState<SoundName>("click");
   const [volume, setVolume] = useState(60);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const compressorRef = useRef<DynamicsCompressorNode | null>(null);
   const nextSoundAtRef = useRef(0);
 
   useEffect(() => {
@@ -86,6 +87,7 @@ export default function Home() {
   useEffect(() => () => {
     audioContextRef.current?.close();
     audioContextRef.current = null;
+    compressorRef.current = null;
   }, []);
 
   const positions = mode === "full" ? fullMode : photoMode;
@@ -102,32 +104,40 @@ export default function Home() {
     if (!context || context.state === "closed") {
       context = new AudioContext({ latencyHint: "interactive" });
       audioContextRef.current = context;
+      const compressor = context.createDynamicsCompressor();
+      compressor.threshold.value = -14;
+      compressor.knee.value = 16;
+      compressor.ratio.value = 6;
+      compressor.attack.value = 0.002;
+      compressor.release.value = 0.09;
+      compressor.connect(context.destination);
+      compressorRef.current = compressor;
     }
     if (context.state === "suspended") void context.resume();
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     oscillator.connect(gain);
-    gain.connect(context.destination);
+    gain.connect(compressorRef.current ?? context.destination);
     const now = Math.max(context.currentTime + 0.003, nextSoundAtRef.current);
     nextSoundAtRef.current = now + 0.024;
     if (soundName === "click") {
       oscillator.type = "sine";
       oscillator.frequency.setValueAtTime(760, now);
       oscillator.frequency.exponentialRampToValueAtTime(420, now + 0.045);
-      gain.gain.setValueAtTime(0.11 * (volume / 100), now);
+      gain.gain.setValueAtTime(0.55 * (volume / 100), now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
       oscillator.start(now); oscillator.stop(now + 0.06);
     } else if (soundName === "clack") {
       oscillator.type = "square";
       oscillator.frequency.setValueAtTime(190, now);
       oscillator.frequency.exponentialRampToValueAtTime(95, now + 0.065);
-      gain.gain.setValueAtTime(0.075 * (volume / 100), now);
+      gain.gain.setValueAtTime(0.42 * (volume / 100), now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
       oscillator.start(now); oscillator.stop(now + 0.085);
     } else {
       oscillator.type = "sine";
       oscillator.frequency.setValueAtTime(440, now);
-      gain.gain.setValueAtTime(0.065 * (volume / 100), now);
+      gain.gain.setValueAtTime(0.36 * (volume / 100), now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
       oscillator.start(now); oscillator.stop(now + 0.13);
     }
