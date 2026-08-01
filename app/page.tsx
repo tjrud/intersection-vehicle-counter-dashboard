@@ -304,17 +304,43 @@ export default function Home() {
           });
         });
 
+        worksheetDocument.querySelectorAll("c").forEach((cell) => {
+          const hasFormula = Array.from(cell.children).some((child) => child.tagName.endsWith("f"));
+          if (!hasFormula) return;
+          Array.from(cell.children).forEach((child) => {
+            if (child.tagName.endsWith("v")) child.remove();
+          });
+        });
+
         zip.file(worksheetPath, new XMLSerializer().serializeToString(worksheetDocument));
       }
 
       if (!matchedTemplate || filledCells === 0) throw new Error("동연사거리 양식의 번호·시간 배치를 찾지 못했습니다.");
       const calcProperties = workbookDocument.querySelector("calcPr");
       if (calcProperties) {
+        calcProperties.setAttribute("calcId", "0");
         calcProperties.setAttribute("calcMode", "auto");
+        calcProperties.setAttribute("calcCompleted", "0");
+        calcProperties.setAttribute("calcOnSave", "1");
         calcProperties.setAttribute("fullCalcOnLoad", "1");
         calcProperties.setAttribute("forceFullCalc", "1");
       }
       zip.file("xl/workbook.xml", new XMLSerializer().serializeToString(workbookDocument));
+
+      relationsDocument.querySelectorAll("Relationship").forEach((relationship) => {
+        if ((relationship.getAttribute("Type") ?? "").endsWith("/calcChain")) relationship.remove();
+      });
+      zip.file("xl/_rels/workbook.xml.rels", new XMLSerializer().serializeToString(relationsDocument));
+      zip.remove("xl/calcChain.xml");
+
+      const contentTypesFile = zip.file("[Content_Types].xml");
+      if (contentTypesFile) {
+        const contentTypesDocument = parseXml(await contentTypesFile.async("text"));
+        contentTypesDocument.querySelectorAll("Override").forEach((override) => {
+          if (override.getAttribute("PartName") === "/xl/calcChain.xml") override.remove();
+        });
+        zip.file("[Content_Types].xml", new XMLSerializer().serializeToString(contentTypesDocument));
+      }
 
       const output = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(output);
@@ -323,7 +349,7 @@ export default function Home() {
       link.download = `${excelFile.name.replace(/\.xlsx$/i, "")}_자동입력.xlsx`;
       link.click();
       URL.revokeObjectURL(url);
-      setExcelState({ kind: "success", message: `${savedSlots.length}개 시간대의 번호별 기록을 입력했습니다.` });
+      setExcelState({ kind: "success", message: `${savedSlots.length}개 시간대를 입력했습니다. 파일을 열면 합계 수식이 자동 계산됩니다.` });
     } catch (error) {
       setExcelState({ kind: "error", message: error instanceof Error ? error.message : "엑셀 파일 처리에 실패했습니다." });
     }

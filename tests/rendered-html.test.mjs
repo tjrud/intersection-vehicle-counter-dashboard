@@ -30,6 +30,9 @@ test("엑셀 자동 입력 기능과 원본 보존 안내를 포함한다", asyn
   assert.match(page, /원본 서식과 다른 값은 그대로 유지/);
   assert.match(page, /const excelColumns = \["H", "P", "X"\]/);
   assert.match(page, /fullCalcOnLoad/);
+  assert.match(page, /zip\.remove\("xl\/calcChain\.xml"\)/);
+  assert.match(page, /endsWith\("\/calcChain"\)/);
+  assert.match(page, /calcCompleted/);
   assert.match(packageJson, /"jszip"/);
 });
 
