@@ -98,7 +98,7 @@ export default function Home() {
   const savedCurrent = Boolean(records[date]?.[slot]);
 
   const setCurrentCounts = (next: Counts) => setDrafts((current) => ({ ...current, [key]: next }));
-  const playSound = (force = false) => {
+  const playSound = (force = false, direction: 1 | -1 = 1) => {
     if (!soundOn && !force) return;
     let context = audioContextRef.current;
     if (!context || context.state === "closed") {
@@ -120,23 +120,24 @@ export default function Home() {
     gain.connect(compressorRef.current ?? context.destination);
     const now = Math.max(context.currentTime + 0.003, nextSoundAtRef.current);
     nextSoundAtRef.current = now + 0.024;
+    const pitch = direction === -1 ? 0.7 : 1;
     if (soundName === "click") {
       oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(760, now);
-      oscillator.frequency.exponentialRampToValueAtTime(420, now + 0.045);
+      oscillator.frequency.setValueAtTime(760 * pitch, now);
+      oscillator.frequency.exponentialRampToValueAtTime(420 * pitch, now + 0.045);
       gain.gain.setValueAtTime(0.55 * (volume / 100), now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
       oscillator.start(now); oscillator.stop(now + 0.06);
     } else if (soundName === "clack") {
       oscillator.type = "square";
-      oscillator.frequency.setValueAtTime(190, now);
-      oscillator.frequency.exponentialRampToValueAtTime(95, now + 0.065);
+      oscillator.frequency.setValueAtTime(190 * pitch, now);
+      oscillator.frequency.exponentialRampToValueAtTime(95 * pitch, now + 0.065);
       gain.gain.setValueAtTime(0.42 * (volume / 100), now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
       oscillator.start(now); oscillator.stop(now + 0.085);
     } else {
       oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(440, now);
+      oscillator.frequency.setValueAtTime(440 * pitch, now);
       gain.gain.setValueAtTime(0.36 * (volume / 100), now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
       oscillator.start(now); oscillator.stop(now + 0.13);
@@ -144,7 +145,7 @@ export default function Home() {
   };
 
   const changeCount = (id: number, amount: number) => {
-    playSound();
+    playSound(false, amount < 0 ? -1 : 1);
     setDrafts((current) => {
       const base = current[key] ?? records[date]?.[slot] ?? emptyCounts();
       return { ...current, [key]: { ...base, [id]: Math.max(0, base[id] + amount) } };
