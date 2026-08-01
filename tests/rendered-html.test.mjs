@@ -32,3 +32,15 @@ test("엑셀 자동 입력 기능과 원본 보존 안내를 포함한다", asyn
   assert.match(page, /fullCalcOnLoad/);
   assert.match(packageJson, /"jszip"/);
 });
+
+test("자정 전후의 기존 날짜별 기록을 한 기록표로 복구한다", async () => {
+  const [page, storage] = await Promise.all([
+    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/record-storage.mjs", root), "utf8"),
+  ]);
+  assert.match(page, /intersection-timed-records-v2/);
+  assert.match(page, /localStorage\.getItem\("intersection-timed-records-v1"\)/);
+  assert.match(storage, /isCounts\(latestDay\["00"\]\)/);
+  assert.match(page, /setSlot\(pad\(\(Number\(slot\) \+ 1\) % 96\)\)/);
+  assert.doesNotMatch(page, /setDate|records\[date\]/);
+});

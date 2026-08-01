@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";
+import { migrateDrafts, migrateRecords } from "./record-storage.mjs";
 
 const fullMode = [
   { id: 9, area: "n1" }, { id: 8, area: "n2" }, { id: 7, area: "n3" },
@@ -18,15 +19,13 @@ type Mode = "full" | "photo";
 type Theme = "light" | "dark" | "green";
 type SoundName = "click" | "clack" | "soft";
 type Counts = Record<number, number>;
-type DayRecords = Record<string, Counts>;
-type Records = Record<string, DayRecords>;
+type Records = Record<string, Counts>;
 type Drafts = Record<string, Counts>;
 type ExcelState = { kind: "idle" | "working" | "success" | "error"; message: string };
 
 const emptyCounts = (): Counts =>
   Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i + 1, 0])) as Counts;
 const pad = (value: number) => String(value).padStart(2, "0");
-const localDate = (date = new Date()) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 const slots = Array.from({ length: 96 }, (_, index) => {
   const start = index * 15;
   const end = start + 15;
@@ -36,7 +35,6 @@ const slots = Array.from({ length: 96 }, (_, index) => {
   };
 });
 const currentSlot = () => pad(Math.floor((new Date().getHours() * 60 + new Date().getMinutes()) / 15));
-const draftKey = (date: string, slot: string) => `${date}|${slot}`;
 const excelColumns = ["H", "P", "X"] as const;
 
 const parseXml = (text: string) => {
@@ -75,7 +73,6 @@ const setNumericCell = (document: XMLDocument, row: Element, column: string, row
 
 export default function Home() {
   const [mode, setMode] = useState<Mode>("full");
-  const [date, setDate] = useState(localDate);
   const [slot, setSlot] = useState(currentSlot);
   const [records, setRecords] = useState<Records>({});
   const [drafts, setDrafts] = useState<Drafts>({});
@@ -96,14 +93,13 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("intersection-timed-records-v1");
+      const saved = localStorage.getItem("intersection-timed-records-v2") ?? localStorage.getItem("intersection-timed-records-v1");
       if (saved) {
         const parsed = JSON.parse(saved);
         // eslint-disable-next-line react-hooks/set-state-in-effect -- 브라우저에 저장된 현장 기록을 최초 한 번 복원합니다.
-        setRecords(parsed.records ?? {});
-        setDrafts(parsed.drafts ?? {});
+        setRecords(migrateRecords(parsed.records));
+        setDrafts(migrateDrafts(parsed.drafts));
         setMode(parsed.mode === "photo" ? "photo" : "full");
-        setDate(parsed.date ?? localDate());
         setSlot(parsed.slot ?? currentSlot());
         setTheme(["light", "dark", "green"].includes(parsed.theme) ? parsed.theme : "light");
         setSoundOn(Boolean(parsed.soundOn));
@@ -117,8 +113,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (ready) localStorage.setItem("intersection-timed-records-v1", JSON.stringify({ records, drafts, mode, date, slot, theme, soundOn, soundName, volume }));
-  }, [records, drafts, mode, date, slot, theme, soundOn, soundName, volume, ready]);
+    if (ready) localStorage.setItem("intersection-timed-records-v2", JSON.stringify({ records, drafts, mode, slot, theme, soundOn, soundName, volume }));
+  }, [records, drafts, mode, slot, theme, soundOn, soundName, volume, ready]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -132,12 +128,11 @@ export default function Home() {
 
   const positions = mode === "full" ? fullMode : photoMode;
   const ids = mode === "full" ? Array.from({ length: 12 }, (_, i) => i + 1) : [2, 3, 4, 6, 7, 8];
-  const key = draftKey(date, slot);
-  const counts = drafts[key] ?? records[date]?.[slot] ?? emptyCounts();
+  const counts = drafts[slot] ?? records[slot] ?? emptyCounts();
   const total = useMemo(() => positions.reduce((sum, { id }) => sum + counts[id], 0), [counts, positions]);
-  const savedCurrent = Boolean(records[date]?.[slot]);
+  const savedCurrent = Boolean(records[slot]);
 
-  const setCurrentCounts = (next: Counts) => setDrafts((current) => ({ ...current, [key]: next }));
+  const setCurrentCounts = (next: Counts) => setDrafts((current) => ({ ...current, [slot]: next }));
   const playSound = (force = false, direction: 1 | -1 = 1) => {
     if (!soundOn && !force) return;
     let context = audioContextRef.current;
@@ -187,26 +182,19 @@ export default function Home() {
   const changeCount = (id: number, amount: number) => {
     playSound(false, amount < 0 ? -1 : 1);
     setDrafts((current) => {
-      const base = current[key] ?? records[date]?.[slot] ?? emptyCounts();
-      return { ...current, [key]: { ...base, [id]: Math.max(0, base[id] + amount) } };
+      const base = current[slot] ?? records[slot] ?? emptyCounts();
+      return { ...current, [slot]: { ...base, [id]: Math.max(0, base[id] + amount) } };
     });
   };
 
   const saveAndNext = () => {
-    setRecords((current) => ({ ...current, [date]: { ...(current[date] ?? {}), [slot]: counts } }));
+    setRecords((current) => ({ ...current, [slot]: counts }));
     setDrafts((current) => {
       const next = { ...current };
-      delete next[key];
+      delete next[slot];
       return next;
     });
-    const nextIndex = Number(slot) + 1;
-    if (nextIndex < 96) setSlot(pad(nextIndex));
-    else {
-      const nextDate = new Date(`${date}T12:00:00`);
-      nextDate.setDate(nextDate.getDate() + 1);
-      setDate(localDate(nextDate));
-      setSlot("00");
-    }
+    setSlot(pad((Number(slot) + 1) % 96));
   };
 
   const resetDraft = () => {
@@ -216,14 +204,14 @@ export default function Home() {
 
   const tableText = (separator = "\t", savedOnly = false, hourlySpacing = false) => {
     const header = ["시간", ...ids.map((id) => `${id}번`), "합계"];
-    const sourceSlots = savedOnly ? slots.filter(({ key: rowSlot }) => Boolean(records[date]?.[rowSlot])) : slots;
+    const sourceSlots = savedOnly ? slots.filter(({ key: rowSlot }) => Boolean(records[rowSlot])) : slots;
     const rows: Array<Array<string | number>> = [];
     sourceSlots.forEach(({ key: rowSlot, label }, index) => {
       const previousSlot = sourceSlots[index - 1];
       if (hourlySpacing && previousSlot && Math.floor(Number(previousSlot.key) / 4) !== Math.floor(Number(rowSlot) / 4)) {
         rows.push(Array(header.length).fill(""));
       }
-      const row = records[date]?.[rowSlot] ?? emptyCounts();
+      const row = records[rowSlot] ?? emptyCounts();
       const values = ids.map((id) => row[id] ?? 0);
       rows.push([label, ...values, values.reduce((sum, value) => sum + value, 0)]);
     });
@@ -251,7 +239,7 @@ export default function Home() {
   };
 
   const fillExcelTemplate = async () => {
-    const savedSlots = Object.entries(records[date] ?? {});
+    const savedSlots = Object.entries(records);
     if (!excelFile) {
       setExcelState({ kind: "error", message: "먼저 수정할 .xlsx 파일을 선택해 주세요." });
       return;
@@ -378,14 +366,14 @@ export default function Home() {
       {showSheet && (
         <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && setShowSheet(false)}>
           <section className="sheet-modal" role="dialog" aria-modal="true" aria-label="저장 기록 표">
-            <header><div><h2>저장 기록</h2><p>00:00부터 15분 단위</p></div><div className="sheet-actions"><button type="button" onClick={copyTable}>{copyState}</button><button type="button" onClick={downloadCsv}>CSV 다운로드</button><button type="button" className="close-modal" onClick={() => setShowSheet(false)} aria-label="닫기">×</button></div></header>
+            <header><div><h2>저장 기록</h2><p>자정이 지나도 끊기지 않고 15분 단위로 이어집니다</p></div><div className="sheet-actions"><button type="button" onClick={copyTable}>{copyState}</button><button type="button" onClick={downloadCsv}>CSV 다운로드</button><button type="button" className="close-modal" onClick={() => setShowSheet(false)} aria-label="닫기">×</button></div></header>
             <div className="excel-import">
               <div><b>동연사거리 엑셀 자동 입력</b><p>저장된 번호별 차량 수를 같은 15분 시간대의 소계 칸에 넣습니다. 원본 서식과 다른 값은 그대로 유지됩니다.</p></div>
               <label className="excel-file"><input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => { setExcelFile(event.target.files?.[0] ?? null); setExcelState({ kind: "idle", message: "" }); }} /><span>{excelFile ? excelFile.name : "엑셀 파일 선택"}</span></label>
               <button type="button" className="excel-fill" disabled={excelState.kind === "working"} onClick={fillExcelTemplate}>{excelState.kind === "working" ? "입력 중…" : "기록 입력 후 다운로드"}</button>
               {excelState.message && <p className={`excel-message ${excelState.kind}`} role="status">{excelState.message}</p>}
             </div>
-            <div className="table-wrap"><table><thead><tr><th>시간</th>{ids.map((id) => <th key={id}>{id}번</th>)}<th>합계</th></tr></thead><tbody>{slots.map(({ key: rowSlot, label }) => { const row = records[date]?.[rowSlot]; const values = ids.map((id) => row?.[id] ?? 0); const sum = values.reduce((a, b) => a + b, 0); return <tr className={row ? "has-data" : ""} key={rowSlot}><th>{label}</th>{values.map((value, index) => <td key={ids[index]}>{value}</td>)}<td className="row-total">{sum}</td></tr>; })}</tbody></table></div>
+            <div className="table-wrap"><table><thead><tr><th>시간</th>{ids.map((id) => <th key={id}>{id}번</th>)}<th>합계</th></tr></thead><tbody>{slots.map(({ key: rowSlot, label }) => { const row = records[rowSlot]; const values = ids.map((id) => row?.[id] ?? 0); const sum = values.reduce((a, b) => a + b, 0); return <tr className={row ? "has-data" : ""} key={rowSlot}><th>{label}</th>{values.map((value, index) => <td key={ids[index]}>{value}</td>)}<td className="row-total">{sum}</td></tr>; })}</tbody></table></div>
           </section>
         </div>
       )}
