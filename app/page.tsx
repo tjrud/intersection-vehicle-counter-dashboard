@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const fullMode = [
   { id: 9, area: "n1" }, { id: 8, area: "n2" }, { id: 7, area: "n3" },
@@ -51,6 +51,8 @@ export default function Home() {
   const [soundOn, setSoundOn] = useState(false);
   const [soundName, setSoundName] = useState<SoundName>("click");
   const [volume, setVolume] = useState(60);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const nextSoundAtRef = useRef(0);
 
   useEffect(() => {
     try {
@@ -81,6 +83,11 @@ export default function Home() {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
+  useEffect(() => () => {
+    audioContextRef.current?.close();
+    audioContextRef.current = null;
+  }, []);
+
   const positions = mode === "full" ? fullMode : photoMode;
   const ids = mode === "full" ? Array.from({ length: 12 }, (_, i) => i + 1) : [2, 3, 4, 6, 7, 8];
   const key = draftKey(date, slot);
@@ -91,12 +98,18 @@ export default function Home() {
   const setCurrentCounts = (next: Counts) => setDrafts((current) => ({ ...current, [key]: next }));
   const playSound = (force = false) => {
     if (!soundOn && !force) return;
-    const context = new AudioContext();
+    let context = audioContextRef.current;
+    if (!context || context.state === "closed") {
+      context = new AudioContext({ latencyHint: "interactive" });
+      audioContextRef.current = context;
+    }
+    if (context.state === "suspended") void context.resume();
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     oscillator.connect(gain);
     gain.connect(context.destination);
-    const now = context.currentTime;
+    const now = Math.max(context.currentTime + 0.003, nextSoundAtRef.current);
+    nextSoundAtRef.current = now + 0.024;
     if (soundName === "click") {
       oscillator.type = "sine";
       oscillator.frequency.setValueAtTime(760, now);
@@ -118,12 +131,14 @@ export default function Home() {
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
       oscillator.start(now); oscillator.stop(now + 0.13);
     }
-    window.setTimeout(() => context.close(), 180);
   };
 
   const changeCount = (id: number, amount: number) => {
     playSound();
-    setCurrentCounts({ ...counts, [id]: Math.max(0, counts[id] + amount) });
+    setDrafts((current) => {
+      const base = current[key] ?? records[date]?.[slot] ?? emptyCounts();
+      return { ...current, [key]: { ...base, [id]: Math.max(0, base[id] + amount) } };
+    });
   };
 
   const saveAndNext = () => {
