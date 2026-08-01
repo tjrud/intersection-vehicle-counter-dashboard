@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import JSZip from "jszip";
 
 const fullMode = [
   { id: 9, area: "n1" }, { id: 8, area: "n2" }, { id: 7, area: "n3" },
@@ -20,6 +21,7 @@ type Counts = Record<number, number>;
 type DayRecords = Record<string, Counts>;
 type Records = Record<string, DayRecords>;
 type Drafts = Record<string, Counts>;
+type ExcelState = { kind: "idle" | "working" | "success" | "error"; message: string };
 
 const emptyCounts = (): Counts =>
   Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i + 1, 0])) as Counts;
@@ -35,6 +37,41 @@ const slots = Array.from({ length: 96 }, (_, index) => {
 });
 const currentSlot = () => pad(Math.floor((new Date().getHours() * 60 + new Date().getMinutes()) / 15));
 const draftKey = (date: string, slot: string) => `${date}|${slot}`;
+const excelColumns = ["H", "P", "X"] as const;
+
+const parseXml = (text: string) => {
+  const document = new DOMParser().parseFromString(text, "application/xml");
+  if (document.querySelector("parsererror")) throw new Error("엑셀 내부 문서를 읽을 수 없습니다.");
+  return document;
+};
+
+const numericCellValue = (cell: Element | null) => {
+  if (!cell) return null;
+  const value = Number(cell.querySelector("v")?.textContent);
+  return Number.isFinite(value) ? value : null;
+};
+
+const setNumericCell = (document: XMLDocument, row: Element, column: string, rowNumber: number, value: number) => {
+  const address = `${column}${rowNumber}`;
+  let cell = Array.from(row.children).find((item) => item.tagName.endsWith("c") && item.getAttribute("r") === address);
+  if (!cell) {
+    cell = document.createElementNS(row.namespaceURI, "c");
+    cell.setAttribute("r", address);
+    const columnNumber = column.charCodeAt(0) - 64;
+    const nextCell = Array.from(row.children).find((item) => {
+      const reference = item.getAttribute("r") ?? "";
+      return reference.charCodeAt(0) - 64 > columnNumber;
+    });
+    row.insertBefore(cell, nextCell ?? null);
+  }
+  cell.removeAttribute("t");
+  Array.from(cell.children).forEach((child) => {
+    if (child.tagName.endsWith("f") || child.tagName.endsWith("v") || child.tagName.endsWith("is")) child.remove();
+  });
+  const valueNode = document.createElementNS(row.namespaceURI, "v");
+  valueNode.textContent = String(Math.max(0, Math.trunc(value)));
+  cell.appendChild(valueNode);
+};
 
 export default function Home() {
   const [mode, setMode] = useState<Mode>("full");
@@ -51,6 +88,8 @@ export default function Home() {
   const [soundOn, setSoundOn] = useState(false);
   const [soundName, setSoundName] = useState<SoundName>("click");
   const [volume, setVolume] = useState(60);
+  const [excelFile, setExcelFile] = useState<File | null>(null);
+  const [excelState, setExcelState] = useState<ExcelState>({ kind: "idle", message: "" });
   const audioContextRef = useRef<AudioContext | null>(null);
   const compressorRef = useRef<DynamicsCompressorNode | null>(null);
   const nextSoundAtRef = useRef(0);
@@ -60,6 +99,7 @@ export default function Home() {
       const saved = localStorage.getItem("intersection-timed-records-v1");
       if (saved) {
         const parsed = JSON.parse(saved);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- 브라우저에 저장된 현장 기록을 최초 한 번 복원합니다.
         setRecords(parsed.records ?? {});
         setDrafts(parsed.drafts ?? {});
         setMode(parsed.mode === "photo" ? "photo" : "full");
@@ -210,6 +250,97 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
+  const fillExcelTemplate = async () => {
+    const savedSlots = Object.entries(records[date] ?? {});
+    if (!excelFile) {
+      setExcelState({ kind: "error", message: "먼저 수정할 .xlsx 파일을 선택해 주세요." });
+      return;
+    }
+    if (!savedSlots.length) {
+      setExcelState({ kind: "error", message: "엑셀에 입력할 저장 기록이 없습니다." });
+      return;
+    }
+
+    setExcelState({ kind: "working", message: "엑셀 파일에 기록을 입력하고 있습니다…" });
+    try {
+      const zip = await JSZip.loadAsync(await excelFile.arrayBuffer());
+      const workbookText = await zip.file("xl/workbook.xml")?.async("text");
+      const relationsText = await zip.file("xl/_rels/workbook.xml.rels")?.async("text");
+      if (!workbookText || !relationsText) throw new Error("올바른 .xlsx 파일이 아닙니다.");
+
+      const workbookDocument = parseXml(workbookText);
+      const relationsDocument = parseXml(relationsText);
+      const relations = new Map(
+        Array.from(relationsDocument.querySelectorAll("Relationship")).map((relation) => [
+          relation.getAttribute("Id") ?? "",
+          relation.getAttribute("Target") ?? "",
+        ]),
+      );
+      const worksheetPaths = Array.from(workbookDocument.querySelectorAll("sheet")).map((sheet) => {
+        const relationshipId = sheet.getAttribute("r:id") ?? sheet.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id") ?? "";
+        const target = relations.get(relationshipId) ?? "";
+        return target.startsWith("/") ? target.slice(1) : `xl/${target.replace(/^\.\//, "")}`;
+      });
+
+      let filledCells = 0;
+      let matchedTemplate = false;
+      for (const worksheetPath of worksheetPaths) {
+        const worksheetFile = zip.file(worksheetPath);
+        if (!worksheetFile) continue;
+        const worksheetDocument = parseXml(await worksheetFile.async("text"));
+        const rows = new Map<number, Element>();
+        worksheetDocument.querySelectorAll("row").forEach((row) => rows.set(Number(row.getAttribute("r")), row));
+
+        const headers = Array.from(rows.entries()).filter(([, row]) => {
+          const values = ["E", "M", "U"].map((column) => numericCellValue(row.querySelector(`c[r="${column}${row.getAttribute("r")}"]`)));
+          return values.every((value) => value !== null && value >= 1 && value <= 12) && values[1] === values[0]! + 1 && values[2] === values[1]! + 1;
+        });
+        if (headers.length < 4) continue;
+        matchedTemplate = true;
+
+        headers.forEach(([headerRow, header]) => {
+          const movementIds = ["E", "M", "U"].map((column) => numericCellValue(header.querySelector(`c[r="${column}${headerRow}"]`)) as number);
+          const blockIndex = Math.floor((headerRow - headers[0][0]) / 112);
+          const blockStartSlot = blockIndex * 16;
+          savedSlots.forEach(([savedSlot, savedCounts]) => {
+            const slotNumber = Number(savedSlot);
+            if (slotNumber < blockStartSlot || slotNumber >= blockStartSlot + 16) return;
+            const localSlot = slotNumber - blockStartSlot;
+            const targetRowNumber = headerRow + 3 + Math.floor(localSlot / 4) * 6 + (localSlot % 4);
+            const targetRow = rows.get(targetRowNumber);
+            if (!targetRow) throw new Error(`${slots[slotNumber].label} 입력 행을 찾지 못했습니다.`);
+            movementIds.forEach((movementId, index) => {
+              setNumericCell(worksheetDocument, targetRow, excelColumns[index], targetRowNumber, savedCounts[movementId] ?? 0);
+              filledCells += 1;
+            });
+          });
+        });
+
+        zip.file(worksheetPath, new XMLSerializer().serializeToString(worksheetDocument));
+      }
+
+      if (!matchedTemplate || filledCells === 0) throw new Error("동연사거리 양식의 번호·시간 배치를 찾지 못했습니다.");
+      const calcProperties = workbookDocument.querySelector("calcPr");
+      if (calcProperties) {
+        calcProperties.setAttribute("calcMode", "auto");
+        calcProperties.setAttribute("fullCalcOnLoad", "1");
+        calcProperties.setAttribute("forceFullCalc", "1");
+      }
+      zip.file("xl/workbook.xml", new XMLSerializer().serializeToString(workbookDocument));
+
+      const output = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(output);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${excelFile.name.replace(/\.xlsx$/i, "")}_자동입력.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setExcelState({ kind: "success", message: `${savedSlots.length}개 시간대의 번호별 기록을 입력했습니다.` });
+    } catch (error) {
+      setExcelState({ kind: "error", message: error instanceof Error ? error.message : "엑셀 파일 처리에 실패했습니다." });
+    }
+  };
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -248,6 +379,12 @@ export default function Home() {
         <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && setShowSheet(false)}>
           <section className="sheet-modal" role="dialog" aria-modal="true" aria-label="저장 기록 표">
             <header><div><h2>저장 기록</h2><p>00:00부터 15분 단위</p></div><div className="sheet-actions"><button type="button" onClick={copyTable}>{copyState}</button><button type="button" onClick={downloadCsv}>CSV 다운로드</button><button type="button" className="close-modal" onClick={() => setShowSheet(false)} aria-label="닫기">×</button></div></header>
+            <div className="excel-import">
+              <div><b>동연사거리 엑셀 자동 입력</b><p>저장된 번호별 차량 수를 같은 15분 시간대의 소계 칸에 넣습니다. 원본 서식과 다른 값은 그대로 유지됩니다.</p></div>
+              <label className="excel-file"><input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => { setExcelFile(event.target.files?.[0] ?? null); setExcelState({ kind: "idle", message: "" }); }} /><span>{excelFile ? excelFile.name : "엑셀 파일 선택"}</span></label>
+              <button type="button" className="excel-fill" disabled={excelState.kind === "working"} onClick={fillExcelTemplate}>{excelState.kind === "working" ? "입력 중…" : "기록 입력 후 다운로드"}</button>
+              {excelState.message && <p className={`excel-message ${excelState.kind}`} role="status">{excelState.message}</p>}
+            </div>
             <div className="table-wrap"><table><thead><tr><th>시간</th>{ids.map((id) => <th key={id}>{id}번</th>)}<th>합계</th></tr></thead><tbody>{slots.map(({ key: rowSlot, label }) => { const row = records[date]?.[rowSlot]; const values = ids.map((id) => row?.[id] ?? 0); const sum = values.reduce((a, b) => a + b, 0); return <tr className={row ? "has-data" : ""} key={rowSlot}><th>{label}</th>{values.map((value, index) => <td key={ids[index]}>{value}</td>)}<td className="row-total">{sum}</td></tr>; })}</tbody></table></div>
           </section>
         </div>

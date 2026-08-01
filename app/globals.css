@@ -79,6 +79,17 @@ output { align-self:center; padding-left:2px; font-size:clamp(30px,3.2vw,46px); 
 .sheet-actions button { height:38px; padding:0 13px; color:#435066; background:#f2f4f7; border:1px solid #dde2e8; border-radius:9px; font-size:11px; font-weight:800; cursor:pointer; }
 .sheet-actions button:first-child { color:white; background:var(--navy); border-color:var(--navy); }
 .sheet-actions .close-modal { width:38px; padding:0; color:#738094; font-size:22px; }
+.excel-import { display:grid; grid-template-columns:minmax(260px,1fr) minmax(190px,280px) auto; align-items:center; gap:10px; padding:14px 20px; background:var(--surface-soft); border-bottom:1px solid var(--line); }
+.excel-import b { color:var(--navy); font-size:14px; }
+.excel-import p { margin:4px 0 0; color:var(--muted); font-size:11px; font-weight:600; line-height:1.45; }
+.excel-file { position:relative; display:flex; align-items:center; height:42px; min-width:0; padding:0 13px; overflow:hidden; color:var(--ink); background:var(--surface); border:1px dashed #aeb8c6; border-radius:10px; font-size:11px; font-weight:800; cursor:pointer; }
+.excel-file input { position:absolute; width:1px; height:1px; opacity:0; }
+.excel-file span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.excel-fill { height:42px; padding:0 15px; color:white; background:#23845e; border:0; border-radius:10px; font-size:11px; font-weight:850; cursor:pointer; }
+.excel-fill:disabled { opacity:.55; cursor:wait; }
+.excel-import .excel-message { grid-column:2/4; margin:0; }
+.excel-message.success { color:#177653; }
+.excel-message.error { color:#bd3b35; }
 .table-wrap { overflow:auto; }
 table { width:100%; border-collapse:separate; border-spacing:0; font-size:11px; font-variant-numeric:tabular-nums; }
 th,td { min-width:62px; padding:8px 9px; text-align:center; border-right:1px solid #edf0f3; border-bottom:1px solid #edf0f3; }
@@ -122,6 +133,7 @@ tbody tr.has-data th { color:var(--orange-dark); }
   .counter{display:flex;flex-direction:column;gap:4px;padding:8px;border-radius:13px}.number-badge{width:25px;height:25px;border-radius:7px;font-size:12px}output{position:absolute;top:10px;right:10px;font-size:25px}.controls{width:100%;margin-top:auto;gap:5px}.controls button{width:50%;height:64px;border-radius:12px;font-size:32px}.intersection{border-radius:17px}.center-mark{width:108px;border-width:6px}.center-mark strong{font-size:26px}
   .footer-bar{align-items:flex-end}.footer-bar p{display:none}.footer-actions{width:100%;justify-content:flex-end}.save-next{flex:1;max-width:240px}.reset-confirm{flex-wrap:wrap;justify-content:flex-end;max-width:220px}.reset-confirm span{width:100%;text-align:right}
   .modal-backdrop{padding:8px}.sheet-modal{max-height:94vh;border-radius:14px}.sheet-modal header{align-items:flex-start;padding:13px}.sheet-modal h2{font-size:18px}.sheet-actions{flex-wrap:wrap;justify-content:flex-end}.sheet-actions button{height:34px;padding:0 9px}.table-wrap{font-size:10px}th,td{min-width:48px;padding:7px 6px}tbody th{min-width:112px}.settings-modal{max-height:94vh;overflow-y:auto;border-radius:16px}.settings-body{padding:18px;gap:22px}.theme-options{grid-template-columns:1fr}.theme-options button{min-height:60px;padding:10px}.settings-modal header{padding:18px}.settings-modal h2{font-size:25px}.settings-modal header p{font-size:13px}.settings-body legend{font-size:15px}
+  .excel-import{grid-template-columns:1fr 1fr;padding:12px 13px}.excel-import>div{grid-column:1/3}.excel-file,.excel-fill{width:100%}.excel-import .excel-message{grid-column:1/3}
 }
 @media(max-width:390px){.full-layout{grid-template-rows:repeat(5,126px);min-height:654px}.photo-layout{grid-template-rows:repeat(4,136px);min-height:562px}.controls button{height:60px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
