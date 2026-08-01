@@ -173,13 +173,18 @@ export default function Home() {
     setConfirmReset(false);
   };
 
-  const tableText = (separator = "\t", savedOnly = false) => {
+  const tableText = (separator = "\t", savedOnly = false, hourlySpacing = false) => {
     const header = ["시간", ...ids.map((id) => `${id}번`), "합계"];
     const sourceSlots = savedOnly ? slots.filter(({ key: rowSlot }) => Boolean(records[date]?.[rowSlot])) : slots;
-    const rows = sourceSlots.map(({ key: rowSlot, label }) => {
+    const rows: Array<Array<string | number>> = [];
+    sourceSlots.forEach(({ key: rowSlot, label }, index) => {
+      const previousSlot = sourceSlots[index - 1];
+      if (hourlySpacing && previousSlot && Math.floor(Number(previousSlot.key) / 4) !== Math.floor(Number(rowSlot) / 4)) {
+        rows.push(Array(header.length).fill(""));
+      }
       const row = records[date]?.[rowSlot] ?? emptyCounts();
       const values = ids.map((id) => row[id] ?? 0);
-      return [label, ...values, values.reduce((sum, value) => sum + value, 0)];
+      rows.push([label, ...values, values.reduce((sum, value) => sum + value, 0)]);
     });
     return [header, ...rows].map((row) => row.join(separator)).join("\n");
   };
@@ -195,7 +200,7 @@ export default function Home() {
   };
 
   const downloadCsv = () => {
-    const csv = `\uFEFF${tableText(",", true)}`;
+    const csv = `\uFEFF${tableText(",", true, true)}`;
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
