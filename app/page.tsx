@@ -14,6 +14,8 @@ const photoMode = [
 ] as const;
 
 type Mode = "full" | "photo";
+type Theme = "light" | "dark" | "green";
+type SoundName = "click" | "clack" | "soft";
 type Counts = Record<number, number>;
 type DayRecords = Record<string, Counts>;
 type Records = Record<string, DayRecords>;
@@ -43,7 +45,11 @@ export default function Home() {
   const [ready, setReady] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [showSheet, setShowSheet] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [copyState, setCopyState] = useState("표 복사");
+  const [theme, setTheme] = useState<Theme>("light");
+  const [soundOn, setSoundOn] = useState(false);
+  const [soundName, setSoundName] = useState<SoundName>("click");
 
   useEffect(() => {
     try {
@@ -55,6 +61,9 @@ export default function Home() {
         setMode(parsed.mode === "photo" ? "photo" : "full");
         setDate(parsed.date ?? localDate());
         setSlot(parsed.slot ?? currentSlot());
+        setTheme(["light", "dark", "green"].includes(parsed.theme) ? parsed.theme : "light");
+        setSoundOn(Boolean(parsed.soundOn));
+        setSoundName(["click", "clack", "soft"].includes(parsed.soundName) ? parsed.soundName : "click");
       }
     } catch {
       // Start with a clean record when browser storage cannot be read.
@@ -63,8 +72,12 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (ready) localStorage.setItem("intersection-timed-records-v1", JSON.stringify({ records, drafts, mode, date, slot }));
-  }, [records, drafts, mode, date, slot, ready]);
+    if (ready) localStorage.setItem("intersection-timed-records-v1", JSON.stringify({ records, drafts, mode, date, slot, theme, soundOn, soundName }));
+  }, [records, drafts, mode, date, slot, theme, soundOn, soundName, ready]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   const positions = mode === "full" ? fullMode : photoMode;
   const ids = mode === "full" ? Array.from({ length: 12 }, (_, i) => i + 1) : [2, 3, 4, 6, 7, 8];
@@ -74,7 +87,42 @@ export default function Home() {
   const savedCurrent = Boolean(records[date]?.[slot]);
 
   const setCurrentCounts = (next: Counts) => setDrafts((current) => ({ ...current, [key]: next }));
-  const changeCount = (id: number, amount: number) => setCurrentCounts({ ...counts, [id]: Math.max(0, counts[id] + amount) });
+  const playSound = (force = false) => {
+    if (!soundOn && !force) return;
+    const context = new AudioContext();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    const now = context.currentTime;
+    if (soundName === "click") {
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(760, now);
+      oscillator.frequency.exponentialRampToValueAtTime(420, now + 0.045);
+      gain.gain.setValueAtTime(0.11, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+      oscillator.start(now); oscillator.stop(now + 0.06);
+    } else if (soundName === "clack") {
+      oscillator.type = "square";
+      oscillator.frequency.setValueAtTime(190, now);
+      oscillator.frequency.exponentialRampToValueAtTime(95, now + 0.065);
+      gain.gain.setValueAtTime(0.075, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      oscillator.start(now); oscillator.stop(now + 0.085);
+    } else {
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(440, now);
+      gain.gain.setValueAtTime(0.065, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      oscillator.start(now); oscillator.stop(now + 0.13);
+    }
+    window.setTimeout(() => context.close(), 180);
+  };
+
+  const changeCount = (id: number, amount: number) => {
+    playSound();
+    setCurrentCounts({ ...counts, [id]: Math.max(0, counts[id] + amount) });
+  };
 
   const saveAndNext = () => {
     setRecords((current) => ({ ...current, [date]: { ...(current[date] ?? {}), [slot]: counts } }));
@@ -98,9 +146,10 @@ export default function Home() {
     setConfirmReset(false);
   };
 
-  const tableText = (separator = "\t") => {
+  const tableText = (separator = "\t", savedOnly = false) => {
     const header = ["시간", ...ids.map((id) => `${id}번`), "합계"];
-    const rows = slots.map(({ key: rowSlot, label }) => {
+    const sourceSlots = savedOnly ? slots.filter(({ key: rowSlot }) => Boolean(records[date]?.[rowSlot])) : slots;
+    const rows = sourceSlots.map(({ key: rowSlot, label }) => {
       const row = records[date]?.[rowSlot] ?? emptyCounts();
       const values = ids.map((id) => row[id] ?? 0);
       return [label, ...values, values.reduce((sum, value) => sum + value, 0)];
@@ -119,7 +168,7 @@ export default function Home() {
   };
 
   const downloadCsv = () => {
-    const csv = `\uFEFF${tableText(",")}`;
+    const csv = `\uFEFF${tableText(",", true)}`;
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
@@ -139,6 +188,7 @@ export default function Home() {
         <div className="time-field wide"><label htmlFor="record-slot">기록 시간</label><select id="record-slot" value={slot} onChange={(e) => setSlot(e.target.value)}>{slots.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></div>
         <span className={`save-status ${savedCurrent ? "saved" : "draft"}`}>{savedCurrent ? "저장된 구간" : "작성 중"}</span>
         <button type="button" className="sheet-open" onClick={() => setShowSheet(true)}>저장 기록 보기</button>
+        <button type="button" className="settings-open" onClick={() => setShowSettings(true)}>설정</button>
       </section>
 
       <nav className="mode-switch" aria-label="카운터 모드 선택">
@@ -166,6 +216,26 @@ export default function Home() {
           <section className="sheet-modal" role="dialog" aria-modal="true" aria-label="저장 기록 표">
             <header><div><h2>저장 기록</h2><p>00:00부터 15분 단위</p></div><div className="sheet-actions"><button type="button" onClick={copyTable}>{copyState}</button><button type="button" onClick={downloadCsv}>CSV 다운로드</button><button type="button" className="close-modal" onClick={() => setShowSheet(false)} aria-label="닫기">×</button></div></header>
             <div className="table-wrap"><table><thead><tr><th>시간</th>{ids.map((id) => <th key={id}>{id}번</th>)}<th>합계</th></tr></thead><tbody>{slots.map(({ key: rowSlot, label }) => { const row = records[date]?.[rowSlot]; const values = ids.map((id) => row?.[id] ?? 0); const sum = values.reduce((a, b) => a + b, 0); return <tr className={row ? "has-data" : ""} key={rowSlot}><th>{label}</th>{values.map((value, index) => <td key={ids[index]}>{value}</td>)}<td className="row-total">{sum}</td></tr>; })}</tbody></table></div>
+          </section>
+        </div>
+      )}
+
+      {showSettings && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && setShowSettings(false)}>
+          <section className="settings-modal" role="dialog" aria-modal="true" aria-label="설정">
+            <header><div><h2>설정</h2><p>화면과 버튼 소리를 조절합니다</p></div><button type="button" className="settings-close" onClick={() => setShowSettings(false)} aria-label="닫기">×</button></header>
+            <div className="settings-body">
+              <fieldset><legend>테마 색</legend><div className="theme-options">
+                <button type="button" className={theme === "light" ? "selected" : ""} onClick={() => setTheme("light")}><i className="swatch light" /><span><b>흰색</b><small>밝고 선명하게</small></span></button>
+                <button type="button" className={theme === "dark" ? "selected" : ""} onClick={() => setTheme("dark")}><i className="swatch dark" /><span><b>검정색</b><small>어두운 환경</small></span></button>
+                <button type="button" className={theme === "green" ? "selected" : ""} onClick={() => setTheme("green")}><i className="swatch green" /><span><b>은은한 그린</b><small>눈이 편안한 색감</small></span></button>
+              </div></fieldset>
+              <fieldset><legend>버튼 소리</legend><label className="sound-toggle"><span><b>소리 사용</b><small>− / + 버튼을 누를 때 재생</small></span><input type="checkbox" checked={soundOn} onChange={(e) => setSoundOn(e.target.checked)} /><i /></label>
+                <div className="sound-options">{(["click", "clack", "soft"] as SoundName[]).map((name) => <button type="button" key={name} disabled={!soundOn} className={soundName === name ? "selected" : ""} onClick={() => setSoundName(name)}>{name === "click" ? "클릭" : name === "clack" ? "딸칵" : "부드러운 톤"}</button>)}</div>
+                <button type="button" className="sound-preview" disabled={!soundOn} onClick={() => playSound(true)}>소리 미리 듣기</button>
+              </fieldset>
+            </div>
+            <footer><button type="button" onClick={() => setShowSettings(false)}>완료</button></footer>
           </section>
         </div>
       )}
