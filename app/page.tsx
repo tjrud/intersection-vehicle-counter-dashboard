@@ -24,6 +24,7 @@ const boxMode = [
 type Mode = "full" | "photo" | "box";
 type Movement = "left" | "straight" | "right";
 type Theme = "light" | "dark" | "green";
+type InputStyle = "card" | "buttons";
 type SoundName = "click" | "clack" | "soft";
 type CounterSound = SoundName | "default";
 type CounterSounds = Record<Mode, Record<number, CounterSound>>;
@@ -121,6 +122,7 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
   const [copyState, setCopyState] = useState("표 복사");
   const [theme, setTheme] = useState<Theme>("light");
+  const [inputStyle, setInputStyle] = useState<InputStyle>("card");
   const [soundOn, setSoundOn] = useState(false);
   const [soundName, setSoundName] = useState<SoundName>("click");
   const [counterSounds, setCounterSounds] = useState<CounterSounds>(emptyCounterSounds);
@@ -146,6 +148,7 @@ export default function Home() {
         setActiveRecordIds(migrated.activeRecordIds as ActiveRecordIds);
         setMode(parsed.mode === "photo" ? "photo" : parsed.mode === "box" ? "box" : "full");
         setTheme(["light", "dark", "green"].includes(parsed.theme) ? parsed.theme : "light");
+        setInputStyle(parsed.inputStyle === "buttons" ? "buttons" : "card");
         setSoundOn(Boolean(parsed.soundOn));
         setSoundName(["click", "clack", "soft"].includes(parsed.soundName) ? parsed.soundName : "click");
         setCounterSounds(normalizeCounterSounds(parsed.counterSounds));
@@ -158,8 +161,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (ready) localStorage.setItem("intersection-timed-records-v3", JSON.stringify({ library, activeRecordIds, mode, theme, soundOn, soundName, counterSounds, volume }));
-  }, [library, activeRecordIds, mode, theme, soundOn, soundName, counterSounds, volume, ready]);
+    if (ready) localStorage.setItem("intersection-timed-records-v3", JSON.stringify({ library, activeRecordIds, mode, theme, inputStyle, soundOn, soundName, counterSounds, volume }));
+  }, [library, activeRecordIds, mode, theme, inputStyle, soundOn, soundName, counterSounds, volume, ready]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -174,6 +177,7 @@ export default function Home() {
   const positions = mode === "full" ? fullMode : mode === "photo" ? photoMode : boxMode;
   const ids = mode === "photo" ? [2, 3, 4, 6, 7, 8] : Array.from({ length: 12 }, (_, i) => i + 1);
   const isBoxMode = mode === "box";
+  const usesCardControls = isBoxMode || inputStyle === "card";
   const modeRecordSets = library[mode];
   const activeRecordId = activeRecordIds[mode];
   const activeRecordSet = modeRecordSets.find((recordSet) => recordSet.id === activeRecordId) ?? modeRecordSets[0];
@@ -500,7 +504,7 @@ export default function Home() {
       <section className={`counter-panel ${mode === "photo" ? "photo-layout" : "full-layout"} ${isBoxMode ? "box-mode-layout" : ""}`} aria-label="번호별 차량 카운터">
         <div className="intersection" aria-hidden="true"><div className="road vertical-road" /><div className="road horizontal-road" /><div className="center-mark"><span>{slots[Number(slot)].label}</span><b>TOTAL</b><strong>{total}</strong></div></div>
         {positions.map(({ id, area }) => { const movement = movementOf(id); return (
-          <article className={`counter counter-${area} ${isBoxMode ? `box-counter movement-${movement}` : ""}`} key={`${mode}-${id}`} role={isBoxMode ? "button" : undefined} tabIndex={isBoxMode ? 0 : undefined} aria-label={isBoxMode ? `${id}번 ${movementName(movement)}, 좌클릭 추가, 우클릭 빼기, 현재 ${counts[id]}대` : undefined} onClick={isBoxMode ? () => changeCount(id, 1) : undefined} onContextMenu={isBoxMode ? (event) => { event.preventDefault(); changeCount(id, -1); } : undefined} onKeyDown={isBoxMode ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); changeCount(id, 1); } } : undefined}><span className="number-badge">{id}</span><output aria-label={`${id}번 현재 ${counts[id]}대`}>{counts[id].toLocaleString()}</output>{isBoxMode ? <span className="box-action-hint">{movementName(movement)}</span> : <div className="controls"><button type="button" className="minus" onClick={() => changeCount(id, -1)} disabled={counts[id] === 0} aria-label={`${id}번 1대 빼기`}>−</button><button type="button" className="plus" onClick={() => changeCount(id, 1)} aria-label={`${id}번 1대 추가`}>+</button></div>}</article>
+          <article className={`counter counter-${area} ${usesCardControls ? "click-counter" : ""} ${isBoxMode ? `box-counter movement-${movement}` : ""}`} key={`${mode}-${id}`} role={usesCardControls ? "button" : undefined} tabIndex={usesCardControls ? 0 : undefined} aria-label={usesCardControls ? `${id}번${isBoxMode ? ` ${movementName(movement)}` : ""}, 좌클릭 추가, 우클릭 빼기, 현재 ${counts[id]}대` : undefined} onClick={usesCardControls ? () => changeCount(id, 1) : undefined} onContextMenu={usesCardControls ? (event) => { event.preventDefault(); changeCount(id, -1); } : undefined} onKeyDown={usesCardControls ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); changeCount(id, 1); } } : undefined}><span className="number-badge">{id}</span><output aria-label={`${id}번 현재 ${counts[id]}대`}>{counts[id].toLocaleString()}</output>{usesCardControls ? <span className="counter-action-hint">{isBoxMode ? movementName(movement) : "좌 +1 · 우 −1"}</span> : <div className="controls"><button type="button" className="minus" onClick={() => changeCount(id, -1)} disabled={counts[id] === 0} aria-label={`${id}번 1대 빼기`}>−</button><button type="button" className="plus" onClick={() => changeCount(id, 1)} aria-label={`${id}번 1대 추가`}>+</button></div>}</article>
         ); })}
       </section>
 
@@ -537,6 +541,7 @@ export default function Home() {
                 <button type="button" className={theme === "dark" ? "selected" : ""} onClick={() => setTheme("dark")}><i className="swatch dark" /><span><b>검정색</b><small>어두운 환경</small></span></button>
                 <button type="button" className={theme === "green" ? "selected" : ""} onClick={() => setTheme("green")}><i className="swatch green" /><span><b>은은한 그린</b><small>눈이 편안한 색감</small></span></button>
               </div></fieldset>
+              <fieldset><legend>모드 1·2 조작 방식</legend><div className="input-style-options"><button type="button" className={inputStyle === "card" ? "selected" : ""} onClick={() => setInputStyle("card")}><b>카드 클릭</b><small>좌클릭 +1 · 우클릭 −1</small></button><button type="button" className={inputStyle === "buttons" ? "selected" : ""} onClick={() => setInputStyle("buttons")}><b>− / + 버튼</b><small>모바일에서 편리한 방식</small></button></div><p className="input-style-note">모드 3은 항상 카드 클릭 방식으로 작동합니다.</p></fieldset>
               <fieldset><legend>버튼 소리</legend><label className="sound-toggle"><span><b>소리 사용</b><small>− / + 버튼을 누를 때 재생</small></span><input type="checkbox" checked={soundOn} onChange={(e) => setSoundOn(e.target.checked)} /><i /></label>
                 <div className="sound-options">{soundNames.map((name) => <button type="button" key={name} disabled={!soundOn} className={soundName === name ? "selected" : ""} onClick={() => setSoundName(name)}>{soundLabel(name)}</button>)}</div>
                 <label className={`volume-control ${!soundOn ? "disabled" : ""}`}><span><b>볼륨</b><output>{volume}%</output></span><input type="range" min="0" max="100" step="5" value={volume} disabled={!soundOn} onChange={(e) => setVolume(Number(e.target.value))} aria-label="버튼 소리 볼륨" /></label>

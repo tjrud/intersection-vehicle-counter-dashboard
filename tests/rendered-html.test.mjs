@@ -89,3 +89,17 @@ test("모드별 번호마다 버튼 소리를 설정하고 저장한다", async 
   assert.match(page, /counterSounds, volume/);
   assert.match(css, /\.counter-sound-grid/);
 });
+
+test("모드 1과 2의 카드 클릭 및 버튼 조작 방식을 선택한다", async () => {
+  const [page, css] = await Promise.all([
+    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/globals.css", root), "utf8"),
+  ]);
+  assert.match(page, /type InputStyle = "card" \| "buttons"/);
+  assert.match(page, /const usesCardControls = isBoxMode \|\| inputStyle === "card"/);
+  assert.match(page, /모드 1·2 조작 방식/);
+  assert.match(page, /모드 3은 항상 카드 클릭 방식/);
+  assert.match(page, /inputStyle, soundOn/);
+  assert.match(css, /\.click-counter/);
+  assert.match(css, /\.input-style-options/);
+});
