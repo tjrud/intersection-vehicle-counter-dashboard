@@ -25,6 +25,8 @@ type Mode = "full" | "photo" | "box";
 type Movement = "left" | "straight" | "right";
 type Theme = "light" | "dark" | "green";
 type SoundName = "click" | "clack" | "soft";
+type CounterSound = SoundName | "default";
+type CounterSounds = Record<Mode, Record<number, CounterSound>>;
 type Counts = Record<number, number>;
 type Records = Record<string, Counts>;
 type Drafts = Record<string, Counts>;
@@ -45,6 +47,31 @@ const slots = Array.from({ length: 96 }, (_, index) => {
   };
 });
 const excelColumns = ["H", "P", "X"] as const;
+const soundNames: SoundName[] = ["click", "clack", "soft"];
+const counterIdsByMode: Record<Mode, number[]> = {
+  full: Array.from({ length: 12 }, (_, index) => index + 1),
+  photo: [2, 3, 4, 6, 7, 8],
+  box: Array.from({ length: 12 }, (_, index) => index + 1),
+};
+const emptyCounterSounds = (): CounterSounds => ({
+  full: Object.fromEntries(counterIdsByMode.full.map((id) => [id, "default"])) as Record<number, CounterSound>,
+  photo: Object.fromEntries(counterIdsByMode.photo.map((id) => [id, "default"])) as Record<number, CounterSound>,
+  box: Object.fromEntries(counterIdsByMode.box.map((id) => [id, "default"])) as Record<number, CounterSound>,
+});
+const normalizeCounterSounds = (value: unknown): CounterSounds => {
+  const normalized = emptyCounterSounds();
+  if (!value || typeof value !== "object") return normalized;
+  for (const modeName of ["full", "photo", "box"] as Mode[]) {
+    const source = (value as Partial<Record<Mode, Record<number, unknown>>>)[modeName];
+    if (!source || typeof source !== "object") continue;
+    counterIdsByMode[modeName].forEach((id) => {
+      const selected = source[id];
+      if (["default", ...soundNames].includes(selected as CounterSound)) normalized[modeName][id] = selected as CounterSound;
+    });
+  }
+  return normalized;
+};
+const soundLabel = (name: SoundName) => name === "click" ? "클릭" : name === "clack" ? "딸칵" : "부드러운 톤";
 const movementOf = (id: number): Movement => id % 3 === 1 ? "left" : id % 3 === 2 ? "straight" : "right";
 const movementName = (movement: Movement) => movement === "left" ? "좌회전" : movement === "straight" ? "직진" : "우회전";
 const modeName = (mode: Mode) => mode === "full" ? "모드 1 · 12개" : mode === "photo" ? "모드 2 · 6개" : "모드 3 · 12개";
@@ -96,6 +123,8 @@ export default function Home() {
   const [theme, setTheme] = useState<Theme>("light");
   const [soundOn, setSoundOn] = useState(false);
   const [soundName, setSoundName] = useState<SoundName>("click");
+  const [counterSounds, setCounterSounds] = useState<CounterSounds>(emptyCounterSounds);
+  const [soundConfigMode, setSoundConfigMode] = useState<Mode>("full");
   const [volume, setVolume] = useState(60);
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [excelState, setExcelState] = useState<ExcelState>({ kind: "idle", message: "" });
@@ -119,6 +148,7 @@ export default function Home() {
         setTheme(["light", "dark", "green"].includes(parsed.theme) ? parsed.theme : "light");
         setSoundOn(Boolean(parsed.soundOn));
         setSoundName(["click", "clack", "soft"].includes(parsed.soundName) ? parsed.soundName : "click");
+        setCounterSounds(normalizeCounterSounds(parsed.counterSounds));
         setVolume(typeof parsed.volume === "number" ? Math.min(100, Math.max(0, parsed.volume)) : 60);
       }
     } catch {
@@ -128,8 +158,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (ready) localStorage.setItem("intersection-timed-records-v3", JSON.stringify({ library, activeRecordIds, mode, theme, soundOn, soundName, volume }));
-  }, [library, activeRecordIds, mode, theme, soundOn, soundName, volume, ready]);
+    if (ready) localStorage.setItem("intersection-timed-records-v3", JSON.stringify({ library, activeRecordIds, mode, theme, soundOn, soundName, counterSounds, volume }));
+  }, [library, activeRecordIds, mode, theme, soundOn, soundName, counterSounds, volume, ready]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -217,7 +247,7 @@ export default function Home() {
     setExcelFile(null);
     setExcelState({ kind: "idle", message: "" });
   };
-  const playSound = (force = false, direction: 1 | -1 = 1) => {
+  const playSound = (force = false, direction: 1 | -1 = 1, selectedSound: SoundName = soundName) => {
     if (!soundOn && !force) return;
     let context = audioContextRef.current;
     if (!context || context.state === "closed") {
@@ -240,14 +270,14 @@ export default function Home() {
     const now = Math.max(context.currentTime + 0.003, nextSoundAtRef.current);
     nextSoundAtRef.current = now + 0.024;
     const pitch = direction === -1 ? 0.7 : 1;
-    if (soundName === "click") {
+    if (selectedSound === "click") {
       oscillator.type = "sine";
       oscillator.frequency.setValueAtTime(760 * pitch, now);
       oscillator.frequency.exponentialRampToValueAtTime(420 * pitch, now + 0.045);
       gain.gain.setValueAtTime(0.55 * (volume / 100), now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
       oscillator.start(now); oscillator.stop(now + 0.06);
-    } else if (soundName === "clack") {
+    } else if (selectedSound === "clack") {
       oscillator.type = "square";
       oscillator.frequency.setValueAtTime(190 * pitch, now);
       oscillator.frequency.exponentialRampToValueAtTime(95 * pitch, now + 0.065);
@@ -265,7 +295,8 @@ export default function Home() {
 
   const changeCount = (id: number, amount: number) => {
     if (amount < 0 && counts[id] === 0) return;
-    playSound(false, amount < 0 ? -1 : 1);
+    const configuredSound = counterSounds[mode][id] ?? "default";
+    playSound(false, amount < 0 ? -1 : 1, configuredSound === "default" ? soundName : configuredSound);
     updateActiveRecordSet((recordSet) => {
       const base = recordSet.drafts[slot] ?? recordSet.records[slot] ?? emptyCounts();
       return { ...recordSet, drafts: { ...recordSet.drafts, [slot]: { ...base, [id]: Math.max(0, base[id] + amount) } } };
@@ -455,7 +486,7 @@ export default function Home() {
         <div className="time-field wide"><label htmlFor="record-slot">기록 시간</label><select id="record-slot" value={slot} onChange={(e) => selectSlot(e.target.value)}>{slots.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></div>
         <span className={`save-status ${savedCurrent ? "saved" : "draft"}`}>{savedCurrent ? "저장된 구간" : "작성 중"}</span>
         <button type="button" className="sheet-open" onClick={() => setShowSheet(true)}>저장 기록 보기</button>
-        <button type="button" className="settings-open" onClick={() => setShowSettings(true)}>설정</button>
+        <button type="button" className="settings-open" onClick={() => { setSoundConfigMode(mode); setShowSettings(true); }}>설정</button>
       </section>
 
       <nav className="mode-switch" aria-label="카운터 모드 선택">
@@ -507,9 +538,10 @@ export default function Home() {
                 <button type="button" className={theme === "green" ? "selected" : ""} onClick={() => setTheme("green")}><i className="swatch green" /><span><b>은은한 그린</b><small>눈이 편안한 색감</small></span></button>
               </div></fieldset>
               <fieldset><legend>버튼 소리</legend><label className="sound-toggle"><span><b>소리 사용</b><small>− / + 버튼을 누를 때 재생</small></span><input type="checkbox" checked={soundOn} onChange={(e) => setSoundOn(e.target.checked)} /><i /></label>
-                <div className="sound-options">{(["click", "clack", "soft"] as SoundName[]).map((name) => <button type="button" key={name} disabled={!soundOn} className={soundName === name ? "selected" : ""} onClick={() => setSoundName(name)}>{name === "click" ? "클릭" : name === "clack" ? "딸칵" : "부드러운 톤"}</button>)}</div>
+                <div className="sound-options">{soundNames.map((name) => <button type="button" key={name} disabled={!soundOn} className={soundName === name ? "selected" : ""} onClick={() => setSoundName(name)}>{soundLabel(name)}</button>)}</div>
                 <label className={`volume-control ${!soundOn ? "disabled" : ""}`}><span><b>볼륨</b><output>{volume}%</output></span><input type="range" min="0" max="100" step="5" value={volume} disabled={!soundOn} onChange={(e) => setVolume(Number(e.target.value))} aria-label="버튼 소리 볼륨" /></label>
                 <button type="button" className="sound-preview" disabled={!soundOn} onClick={() => playSound(true)}>소리 미리 듣기</button>
+                <div className={`counter-sound-settings ${!soundOn ? "disabled" : ""}`}><div className="counter-sound-heading"><b>번호별 소리</b><small>기본 소리와 다르게 들릴 번호만 변경하세요</small></div><div className="sound-mode-switch">{(["full", "photo", "box"] as Mode[]).map((soundMode) => <button type="button" key={soundMode} disabled={!soundOn} className={soundConfigMode === soundMode ? "selected" : ""} onClick={() => setSoundConfigMode(soundMode)}>{modeName(soundMode)}</button>)}</div><div className="counter-sound-grid">{counterIdsByMode[soundConfigMode].map((id) => <label key={`${soundConfigMode}-${id}`}><b>{id}번</b><select disabled={!soundOn} value={counterSounds[soundConfigMode][id]} onChange={(event) => { const nextSound = event.target.value as CounterSound; setCounterSounds((current) => ({ ...current, [soundConfigMode]: { ...current[soundConfigMode], [id]: nextSound } })); playSound(true, 1, nextSound === "default" ? soundName : nextSound); }} aria-label={`${modeName(soundConfigMode)} ${id}번 소리`}><option value="default">기본 · {soundLabel(soundName)}</option>{soundNames.map((name) => <option key={name} value={name}>{soundLabel(name)}</option>)}</select></label>)}</div></div>
               </fieldset>
             </div>
             <footer><button type="button" onClick={() => setShowSettings(false)}>완료</button></footer>

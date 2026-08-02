@@ -77,3 +77,15 @@ test("모드 3 색상과 모드 2의 큰 조작 버튼 스타일을 제공한다
   assert.match(css, /--right-turn:#1f6b45/);
   assert.match(css, /\.photo-layout \.controls button \{ width:72px; height:72px;/);
 });
+
+test("모드별 번호마다 버튼 소리를 설정하고 저장한다", async () => {
+  const [page, css] = await Promise.all([
+    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/globals.css", root), "utf8"),
+  ]);
+  assert.match(page, /type CounterSounds = Record<Mode/);
+  assert.match(page, /counterSounds\[mode\]\[id\]/);
+  assert.match(page, /번호별 소리/);
+  assert.match(page, /counterSounds, volume/);
+  assert.match(css, /\.counter-sound-grid/);
+});
