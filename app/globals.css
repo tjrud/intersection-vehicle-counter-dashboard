@@ -21,9 +21,15 @@ h1 { margin:0; color:var(--navy); font-size:clamp(26px,3vw,38px); letter-spacing
 .time-field { display:flex; flex-direction:column; gap:5px; }
 .time-field label { color:#738094; font-size:10px; font-weight:800; letter-spacing:.04em; }
 .time-field select { min-width:210px; height:42px; padding:0 36px 0 12px; color:var(--ink); background:var(--surface-soft); border:1px solid var(--line); border-radius:10px; font-size:16px; font-weight:850; cursor:pointer; }
-.record-set-controls { display:flex; gap:6px; }
+.record-set-controls { display:flex; flex-wrap:wrap; gap:6px; }
 .record-set-field select { min-width:190px; font-size:14px; }
 .new-record { height:42px; padding:0 13px; color:#177653; background:#e7f7f0; border:1px solid #b9e5d2; border-radius:10px; font-size:12px; font-weight:850; white-space:nowrap; cursor:pointer; }
+.rename-record { height:42px; padding:0 12px; color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:10px; font-size:12px; font-weight:800; white-space:nowrap; cursor:pointer; }
+.record-rename { display:flex; gap:6px; margin-top:2px; }
+.record-rename input { flex:1; min-width:0; height:40px; padding:0 12px; color:var(--ink); background:var(--surface); border:2px solid var(--orange); border-radius:10px; font-size:14px; font-weight:750; outline:0; }
+.record-rename button { height:40px; padding:0 12px; color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:9px; font-size:11px; font-weight:800; cursor:pointer; }
+.record-rename button[type="submit"] { color:white; background:var(--orange); border-color:var(--orange); }
+.record-rename button:disabled { opacity:.45; cursor:default; }
 .save-status { align-self:center; padding:6px 9px; border-radius:999px; font-size:10px; font-weight:800; }
 .save-status.draft { color:#a34f19; background:#fff0e8; }
 .save-status.saved { color:#177653; background:#e7f7f0; }
@@ -130,7 +136,7 @@ tbody tr.has-data th { color:var(--orange-dark); }
 }
 @media(max-width:620px){
   .app-shell{padding:16px 10px 12px}.topbar{align-items:center;margin-bottom:12px}.eyebrow{font-size:10px;margin-bottom:3px}h1{font-size:22px}.total-card{padding:10px 13px;border-radius:13px;gap:5px}.total-card span{display:none}.total-card strong{font-size:24px}
-  .record-toolbar{align-items:center;padding:9px;gap:6px}.time-field{flex:1}.time-field select{width:100%;min-width:0;height:39px;font-size:13px}.record-set-field{flex:1 0 100%;width:100%}.record-set-controls{width:100%}.record-set-field select{flex:1}.new-record{height:39px;padding:0 11px;font-size:11px}.save-status{display:none}.sheet-open,.settings-open{height:39px;padding:0 8px;font-size:9px}
+  .record-toolbar{align-items:center;padding:9px;gap:6px}.time-field{flex:1}.time-field select{width:100%;min-width:0;height:39px;font-size:13px}.record-set-field{flex:1 0 100%;width:100%}.record-set-controls{width:100%}.record-set-field select{flex:1 0 100%}.new-record,.rename-record{flex:1;height:39px;padding:0 11px;font-size:11px}.record-rename{width:100%}.save-status{display:none}.sheet-open,.settings-open{height:39px;padding:0 8px;font-size:9px}
   .mode-switch{width:100%;margin-bottom:10px}.mode-switch button{justify-content:center;min-width:0;width:50%;padding:8px 6px}.mode-switch button span{display:none}
   .full-layout{grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(5,130px);gap:6px;min-height:674px}.photo-layout{grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(4,142px);gap:6px;min-height:586px}
   .counter{display:flex;flex-direction:column;gap:4px;padding:8px;border-radius:13px}.number-badge{width:25px;height:25px;border-radius:7px;font-size:12px}output{position:absolute;top:10px;right:10px;font-size:25px}.controls{width:100%;margin-top:auto;gap:5px}.controls button{width:50%;height:64px;border-radius:12px;font-size:32px}.intersection{border-radius:17px}.center-mark{width:108px;border-width:6px}.center-mark strong{font-size:26px}

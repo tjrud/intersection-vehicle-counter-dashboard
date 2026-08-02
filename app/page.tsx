@@ -88,6 +88,8 @@ export default function Home() {
   const [volume, setVolume] = useState(60);
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [excelState, setExcelState] = useState<ExcelState>({ kind: "idle", message: "" });
+  const [editingRecordName, setEditingRecordName] = useState(false);
+  const [recordNameDraft, setRecordNameDraft] = useState("");
   const audioContextRef = useRef<AudioContext | null>(null);
   const compressorRef = useRef<DynamicsCompressorNode | null>(null);
   const nextSoundAtRef = useRef(0);
@@ -148,6 +150,7 @@ export default function Home() {
   const selectSlot = (nextSlot: string) => updateActiveRecordSet((recordSet) => ({ ...recordSet, slot: nextSlot }));
   const selectRecordSet = (recordSetId: string) => {
     setActiveRecordIds((current) => ({ ...current, [mode]: recordSetId }));
+    setEditingRecordName(false);
     setExcelFile(null);
     setExcelState({ kind: "idle", message: "" });
   };
@@ -157,13 +160,25 @@ export default function Home() {
     const nextRecordSet: RecordSet = { id, name: `기록 ${nextNumber}`, records: {}, drafts: {}, slot: "00" };
     setLibrary((current) => ({ ...current, [mode]: [...current[mode], nextRecordSet] }));
     setActiveRecordIds((current) => ({ ...current, [mode]: id }));
+    setEditingRecordName(false);
     setExcelFile(null);
     setExcelState({ kind: "idle", message: "" });
   };
   const selectMode = (nextMode: Mode) => {
     setMode(nextMode);
+    setEditingRecordName(false);
     setExcelFile(null);
     setExcelState({ kind: "idle", message: "" });
+  };
+  const startRenamingRecord = () => {
+    setRecordNameDraft(activeRecordSet.name);
+    setEditingRecordName(true);
+  };
+  const saveRecordName = () => {
+    const nextName = recordNameDraft.trim();
+    if (!nextName) return;
+    updateActiveRecordSet((recordSet) => ({ ...recordSet, name: nextName }));
+    setEditingRecordName(false);
   };
   const playSound = (force = false, direction: 1 | -1 = 1) => {
     if (!soundOn && !force) return;
@@ -398,7 +413,7 @@ export default function Home() {
       </header>
 
       <section className="record-toolbar" aria-label="기록 슬롯과 시간 선택">
-        <div className="time-field record-set-field"><label htmlFor="record-set">기록 슬롯 · {mode === "full" ? "12개 모드" : "6개 모드"}</label><div className="record-set-controls"><select id="record-set" value={activeRecordId} onChange={(event) => selectRecordSet(event.target.value)}>{modeRecordSets.map((recordSet) => <option key={recordSet.id} value={recordSet.id}>{recordSet.name} · {Object.keys(recordSet.records).length}/96 저장</option>)}</select><button type="button" className="new-record" onClick={createRecordSet}>+ 새 기록</button></div></div>
+        <div className="time-field record-set-field"><label htmlFor="record-set">기록 슬롯 · {mode === "full" ? "12개 모드" : "6개 모드"}</label><div className="record-set-controls"><select id="record-set" value={activeRecordId} onChange={(event) => selectRecordSet(event.target.value)}>{modeRecordSets.map((recordSet) => <option key={recordSet.id} value={recordSet.id}>{recordSet.name} · {Object.keys(recordSet.records).length}/96 저장</option>)}</select><button type="button" className="rename-record" onClick={startRenamingRecord}>이름 변경</button><button type="button" className="new-record" onClick={createRecordSet}>+ 새 기록</button></div>{editingRecordName && <form className="record-rename" onSubmit={(event) => { event.preventDefault(); saveRecordName(); }}><input autoFocus maxLength={40} value={recordNameDraft} onChange={(event) => setRecordNameDraft(event.target.value)} aria-label="기록 이름" /><button type="submit" disabled={!recordNameDraft.trim()}>저장</button><button type="button" onClick={() => setEditingRecordName(false)}>취소</button></form>}</div>
         <div className="time-field wide"><label htmlFor="record-slot">기록 시간</label><select id="record-slot" value={slot} onChange={(e) => selectSlot(e.target.value)}>{slots.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></div>
         <span className={`save-status ${savedCurrent ? "saved" : "draft"}`}>{savedCurrent ? "저장된 구간" : "작성 중"}</span>
         <button type="button" className="sheet-open" onClick={() => setShowSheet(true)}>저장 기록 보기</button>

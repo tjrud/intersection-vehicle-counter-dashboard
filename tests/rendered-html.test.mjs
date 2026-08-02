@@ -53,6 +53,8 @@ test("모드별 다중 기록 슬롯 선택과 생성 기능을 제공한다", a
   const page = await readFile(new URL("app/page.tsx", root), "utf8");
   assert.match(page, /기록 슬롯/);
   assert.match(page, /\+ 새 기록/);
+  assert.match(page, /이름 변경/);
+  assert.match(page, /saveRecordName/);
   assert.match(page, /library\[mode\]/);
   assert.match(page, /activeRecordIds\[mode\]/);
   assert.match(page, /safeRecordName/);
