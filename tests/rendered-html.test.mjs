@@ -26,7 +26,8 @@ test("엑셀 자동 입력 기능과 원본 보존 안내를 포함한다", asyn
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("package.json", root), "utf8"),
   ]);
-  assert.match(page, /동연사거리 엑셀 자동 입력/);
+  assert.match(page, /엑셀 자동 입력/);
+  assert.doesNotMatch(page, /동연사거리 엑셀 자동 입력/);
   assert.match(page, /원본 서식과 다른 값은 그대로 유지/);
   assert.match(page, /const excelColumns = \["H", "P", "X"\]/);
   assert.match(page, /fullCalcOnLoad/);
