@@ -44,4 +44,17 @@ test("12개 모드와 6개 모드의 여러 기록 슬롯을 분리해서 유지
   assert.equal(migrated.library.full[1].records["00"][1], 2);
   assert.equal(migrated.library.photo[0].records["00"][1], 3);
   assert.equal(migrated.activeRecordIds.full, "full-b");
+  assert.equal(migrated.library.box[0].id, "box-1");
+});
+
+test("모드 3 기록도 다른 모드와 별도 저장한다", () => {
+  const migrated = migrateToLibrary({
+    mode: "box",
+    records: { "00": counts(30) },
+    drafts: {},
+    slot: "01",
+  });
+  assert.equal(migrated.library.box[0].records["00"][3], 30);
+  assert.deepEqual(migrated.library.full[0].records, {});
+  assert.deepEqual(migrated.library.photo[0].records, {});
 });

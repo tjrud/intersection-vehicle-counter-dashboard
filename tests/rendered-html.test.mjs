@@ -61,4 +61,8 @@ test("모드별 다중 기록 슬롯 선택과 생성 기능을 제공한다", a
   assert.match(page, /library\[mode\]/);
   assert.match(page, /activeRecordIds\[mode\]/);
   assert.match(page, /safeRecordName/);
+  assert.match(page, /모드 3 · 12개/);
+  assert.match(page, /boxMode/);
+  assert.match(page, /onContextMenu/);
+  assert.match(page, /movement-\$\{movement\}/);
 });
