@@ -30,6 +30,8 @@ test("엑셀 자동 입력 기능과 원본 보존 안내를 포함한다", asyn
   assert.doesNotMatch(page, /동연사거리 엑셀 자동 입력/);
   assert.match(page, /원본 서식과 다른 값은 그대로 유지/);
   assert.match(page, /const excelColumns = \["H", "P", "X"\]/);
+  assert.match(page, /const savedSlots = Object\.entries\(records\)/);
+  assert.match(page, /savedSlots\.forEach/);
   assert.match(page, /fullCalcOnLoad/);
   assert.match(page, /zip\.remove\("xl\/calcChain\.xml"\)/);
   assert.match(page, /endsWith\("\/calcChain"\)/);
@@ -71,7 +73,7 @@ test("모드별 다중 기록 슬롯 선택과 생성 기능을 제공한다", a
 test("모드 3 색상과 모드 2의 큰 조작 버튼 스타일을 제공한다", async () => {
   const css = await readFile(new URL("app/globals.css", root), "utf8");
   assert.match(css, /--left-turn:#1f6b45/);
-  assert.match(css, /--straight:#2563a6/);
+  assert.match(css, /--straight:#69ace0/);
   assert.match(css, /--right-turn:#1f6b45/);
   assert.match(css, /\.photo-layout \.controls button \{ width:72px; height:72px;/);
 });
