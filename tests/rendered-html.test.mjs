@@ -55,6 +55,9 @@ test("모드별 다중 기록 슬롯 선택과 생성 기능을 제공한다", a
   assert.match(page, /\+ 새 기록/);
   assert.match(page, /이름 변경/);
   assert.match(page, /saveRecordName/);
+  assert.match(page, /기록 삭제/);
+  assert.match(page, /deleteRecordSet/);
+  assert.match(page, /복구할 수 없습니다/);
   assert.match(page, /library\[mode\]/);
   assert.match(page, /activeRecordIds\[mode\]/);
   assert.match(page, /safeRecordName/);
