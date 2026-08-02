@@ -66,3 +66,11 @@ test("모드별 다중 기록 슬롯 선택과 생성 기능을 제공한다", a
   assert.match(page, /onContextMenu/);
   assert.match(page, /movement-\$\{movement\}/);
 });
+
+test("모드 3 색상과 모드 2의 큰 조작 버튼 스타일을 제공한다", async () => {
+  const css = await readFile(new URL("app/globals.css", root), "utf8");
+  assert.match(css, /--left-turn:#1f6b45/);
+  assert.match(css, /--straight:#2563a6/);
+  assert.match(css, /--right-turn:#1f6b45/);
+  assert.match(css, /\.photo-layout \.controls button \{ width:72px; height:72px;/);
+});
