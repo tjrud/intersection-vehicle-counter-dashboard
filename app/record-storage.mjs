@@ -53,3 +53,60 @@ export const migrateDrafts = (value) => {
   });
   return result;
 };
+
+const normalizeSlot = (value, fallback = "00") => {
+  const normalized = slotKey(String(value ?? ""));
+  return normalized ?? fallback;
+};
+
+const emptySet = (mode, index = 1) => ({
+  id: `${mode}-${index}`,
+  name: `기록 ${index}`,
+  records: {},
+  drafts: {},
+  slot: "00",
+});
+
+export const createEmptyLibrary = () => ({
+  library: { full: [emptySet("full")], photo: [emptySet("photo")] },
+  activeRecordIds: { full: "full-1", photo: "photo-1" },
+});
+
+const normalizeSet = (value, mode, index) => {
+  const fallback = emptySet(mode, index + 1);
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
+  return {
+    id: typeof value.id === "string" && value.id ? value.id : fallback.id,
+    name: typeof value.name === "string" && value.name.trim() ? value.name.trim() : fallback.name,
+    records: migrateRecords(value.records),
+    drafts: migrateDrafts(value.drafts),
+    slot: normalizeSlot(value.slot),
+  };
+};
+
+export const migrateToLibrary = (value) => {
+  const defaults = createEmptyLibrary();
+  if (!value || typeof value !== "object" || Array.isArray(value)) return defaults;
+
+  if (value.library && typeof value.library === "object") {
+    for (const mode of ["full", "photo"]) {
+      const sourceSets = Array.isArray(value.library[mode]) ? value.library[mode] : [];
+      const sets = sourceSets.map((set, index) => normalizeSet(set, mode, index));
+      defaults.library[mode] = sets.length ? sets : [emptySet(mode)];
+      const requestedId = value.activeRecordIds?.[mode];
+      defaults.activeRecordIds[mode] = defaults.library[mode].some((set) => set.id === requestedId)
+        ? requestedId
+        : defaults.library[mode][0].id;
+    }
+    return defaults;
+  }
+
+  const mode = value.mode === "photo" ? "photo" : "full";
+  defaults.library[mode][0] = {
+    ...defaults.library[mode][0],
+    records: migrateRecords(value.records),
+    drafts: migrateDrafts(value.drafts),
+    slot: normalizeSlot(value.slot),
+  };
+  return defaults;
+};

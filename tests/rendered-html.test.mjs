@@ -42,8 +42,18 @@ test("자정 전후의 기존 날짜별 기록을 한 기록표로 복구한다"
     readFile(new URL("app/record-storage.mjs", root), "utf8"),
   ]);
   assert.match(page, /intersection-timed-records-v2/);
+  assert.match(page, /intersection-timed-records-v3/);
   assert.match(page, /localStorage\.getItem\("intersection-timed-records-v1"\)/);
   assert.match(storage, /isCounts\(latestDay\["00"\]\)/);
-  assert.match(page, /setSlot\(pad\(\(Number\(slot\) \+ 1\) % 96\)\)/);
+  assert.match(page, /slot:\s*pad\(\(Number\(slot\) \+ 1\) % 96\)/);
   assert.doesNotMatch(page, /setDate|records\[date\]/);
+});
+
+test("모드별 다중 기록 슬롯 선택과 생성 기능을 제공한다", async () => {
+  const page = await readFile(new URL("app/page.tsx", root), "utf8");
+  assert.match(page, /기록 슬롯/);
+  assert.match(page, /\+ 새 기록/);
+  assert.match(page, /library\[mode\]/);
+  assert.match(page, /activeRecordIds\[mode\]/);
+  assert.match(page, /safeRecordName/);
 });
