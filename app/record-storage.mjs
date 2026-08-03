@@ -54,6 +54,44 @@ export const migrateDrafts = (value) => {
   return result;
 };
 
+const rangeSlots = (start, end) => {
+  const result = [];
+  let current = Number(start);
+  const last = Number(end);
+  for (let count = 0; count < 96; count += 1) {
+    result.push(pad(current));
+    if (current === last) break;
+    current = (current + 1) % 96;
+  }
+  return result;
+};
+
+const hasNonZeroCount = (counts) => Object.values(counts ?? {}).some((count) => Number(count) !== 0);
+
+export const shiftRecords = (records, start, end, offset) => {
+  const normalizedStart = slotKey(String(start));
+  const normalizedEnd = slotKey(String(end));
+  if (!normalizedStart || !normalizedEnd || ![-1, 1].includes(offset)) throw new Error("보정 범위가 올바르지 않습니다.");
+
+  const selectedSlots = rangeSlots(normalizedStart, normalizedEnd);
+  const sourceSlots = selectedSlots.filter((slot) => isCounts(records?.[slot]));
+  if (!sourceSlots.length) throw new Error("선택한 범위에 저장된 기록이 없습니다.");
+
+  const sourceSet = new Set(sourceSlots);
+  const moves = sourceSlots.map((source) => ({
+    source,
+    target: pad((Number(source) + offset + 96) % 96),
+    counts: records[source],
+  }));
+  const collision = moves.find(({ target }) => !sourceSet.has(target) && isCounts(records[target]) && hasNonZeroCount(records[target]));
+  if (collision) throw new Error(`${collision.target} 시간대에 다른 기록이 있어 이동할 수 없습니다.`);
+
+  const shifted = { ...records };
+  sourceSlots.forEach((source) => delete shifted[source]);
+  moves.forEach(({ target, counts }) => { shifted[target] = counts; });
+  return { records: shifted, moved: moves.length };
+};
+
 const normalizeSlot = (value, fallback = "00") => {
   const normalized = slotKey(String(value ?? ""));
   return normalized ?? fallback;

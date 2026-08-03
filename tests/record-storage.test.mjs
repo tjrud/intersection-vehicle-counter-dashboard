@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { migrateDrafts, migrateRecords, migrateToLibrary } from "../app/record-storage.mjs";
+import { migrateDrafts, migrateRecords, migrateToLibrary, shiftRecords } from "../app/record-storage.mjs";
 
 const counts = (value) => Object.fromEntries(Array.from({ length: 12 }, (_, index) => [index + 1, value]));
 
@@ -72,4 +72,33 @@ test("모드 3 기록도 다른 모드와 별도 저장한다", () => {
   assert.equal(migrated.library.box[0].records["00"][3], 30);
   assert.deepEqual(migrated.library.full[0].records, {});
   assert.deepEqual(migrated.library.photo[0].records, {});
+});
+
+test("선택한 저장 기록을 15분 앞으로 보정한다", () => {
+  const original = { "73": counts(73), "75": counts(75) };
+  const shifted = shiftRecords(original, "73", "75", -1);
+  assert.equal(shifted.moved, 2);
+  assert.equal(shifted.records["72"][1], 73);
+  assert.equal(shifted.records["74"][12], 75);
+  assert.equal(shifted.records["73"], undefined);
+  assert.equal(shifted.records["75"], undefined);
+});
+
+test("자정을 넘는 범위도 15분 뒤로 보정한다", () => {
+  const shifted = shiftRecords({ "95": counts(95), "00": counts(0) }, "95", "00", 1);
+  assert.equal(shifted.records["00"][1], 95);
+  assert.equal(shifted.records["01"][12], 0);
+});
+
+test("이동할 시간대에 다른 기록이 있으면 덮어쓰지 않는다", () => {
+  const original = { "72": counts(72), "73": counts(73) };
+  assert.throws(() => shiftRecords(original, "73", "73", -1), /다른 기록/);
+  assert.equal(original["72"][1], 72);
+  assert.equal(original["73"][1], 73);
+});
+
+test("대상 시간대가 저장된 0이면 보정 기록으로 교체할 수 있다", () => {
+  const shifted = shiftRecords({ "72": counts(0), "73": counts(73) }, "73", "73", -1);
+  assert.equal(shifted.records["72"][1], 73);
+  assert.equal(shifted.records["73"], undefined);
 });

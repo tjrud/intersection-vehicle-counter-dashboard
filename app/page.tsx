@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";
-import { createEmptyLibrary, migrateToLibrary } from "./record-storage.mjs";
+import { createEmptyLibrary, migrateToLibrary, shiftRecords } from "./record-storage.mjs";
 
 const fullMode = [
   { id: 9, area: "n1" }, { id: 8, area: "n2" }, { id: 7, area: "n3" },
@@ -42,6 +42,7 @@ type RecordSet = { id: string; name: string; records: Records; drafts: Drafts; s
 type RecordLibrary = Record<Mode, RecordSet[]>;
 type ActiveRecordIds = Record<Mode, string>;
 type ExcelState = { kind: "idle" | "working" | "success" | "error"; message: string };
+type CorrectionState = { kind: "idle" | "success" | "error"; message: string };
 
 const emptyCounts = (): Counts =>
   Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i + 1, 0])) as Counts;
@@ -157,6 +158,12 @@ export default function Home() {
   const [editingRecordName, setEditingRecordName] = useState(false);
   const [recordNameDraft, setRecordNameDraft] = useState("");
   const [confirmDeleteRecord, setConfirmDeleteRecord] = useState(false);
+  const [showCorrection, setShowCorrection] = useState(false);
+  const [correctionStart, setCorrectionStart] = useState("00");
+  const [correctionEnd, setCorrectionEnd] = useState("00");
+  const [correctionOffset, setCorrectionOffset] = useState<-1 | 1>(-1);
+  const [correctionState, setCorrectionState] = useState<CorrectionState>({ kind: "idle", message: "" });
+  const [correctionUndo, setCorrectionUndo] = useState<Records | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const compressorRef = useRef<DynamicsCompressorNode | null>(null);
   const nextSoundAtRef = useRef(0);
@@ -233,6 +240,8 @@ export default function Home() {
     setConfirmDeleteRecord(false);
     setExcelFile(null);
     setExcelState({ kind: "idle", message: "" });
+    setShowCorrection(false);
+    setCorrectionUndo(null);
   };
   const createRecordSet = () => {
     const nextNumber = modeRecordSets.length + 1;
@@ -251,6 +260,8 @@ export default function Home() {
     setConfirmDeleteRecord(false);
     setExcelFile(null);
     setExcelState({ kind: "idle", message: "" });
+    setShowCorrection(false);
+    setCorrectionUndo(null);
   };
   const startRenamingRecord = () => {
     setRecordNameDraft(activeRecordSet.name);
@@ -356,6 +367,35 @@ export default function Home() {
   const resetDraft = () => {
     setCurrentCounts(emptyCounts());
     setConfirmReset(false);
+  };
+
+  const openCorrection = () => {
+    setCorrectionStart(slot);
+    setCorrectionEnd(slot);
+    setCorrectionOffset(-1);
+    setCorrectionState({ kind: "idle", message: "" });
+    setCorrectionUndo(null);
+    setShowCorrection((current) => !current);
+  };
+
+  const applyTimeCorrection = () => {
+    try {
+      const shifted = shiftRecords(records, correctionStart, correctionEnd, correctionOffset) as { records: Records; moved: number };
+      setCorrectionUndo(records);
+      updateActiveRecordSet((recordSet) => ({ ...recordSet, records: shifted.records }));
+      const direction = correctionOffset === -1 ? "앞으로" : "뒤로";
+      setCorrectionState({ kind: "success", message: `${shifted.moved}개 저장 구간을 15분 ${direction} 옮겼습니다.` });
+    } catch (error) {
+      setCorrectionUndo(null);
+      setCorrectionState({ kind: "error", message: error instanceof Error ? error.message : "시간 보정을 적용하지 못했습니다." });
+    }
+  };
+
+  const undoTimeCorrection = () => {
+    if (!correctionUndo) return;
+    updateActiveRecordSet((recordSet) => ({ ...recordSet, records: correctionUndo }));
+    setCorrectionUndo(null);
+    setCorrectionState({ kind: "success", message: "방금 적용한 시간 보정을 되돌렸습니다." });
   };
 
   const tableText = (separator = "\t", savedOnly = false, hourlySpacing = false) => {
@@ -558,7 +598,8 @@ export default function Home() {
       {showSheet && (
         <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && setShowSheet(false)}>
           <section className="sheet-modal" role="dialog" aria-modal="true" aria-label="저장 기록 표">
-            <header><div><h2>{activeRecordSet.name} 저장 기록</h2><p>{modeName(mode)} · {Object.keys(records).length}/96 구간 저장 · 자정 이후에도 계속 이어집니다</p></div><div className="sheet-actions"><button type="button" onClick={copyTable}>{copyState}</button><button type="button" onClick={downloadCsv}>CSV 다운로드</button><button type="button" className="close-modal" onClick={() => setShowSheet(false)} aria-label="닫기">×</button></div></header>
+            <header><div><h2>{activeRecordSet.name} 저장 기록</h2><p>{modeName(mode)} · {Object.keys(records).length}/96 구간 저장 · 자정 이후에도 계속 이어집니다</p></div><div className="sheet-actions"><button type="button" className="time-correction-open" onClick={openCorrection}>시간 보정</button><button type="button" onClick={copyTable}>{copyState}</button><button type="button" onClick={downloadCsv}>CSV 다운로드</button><button type="button" className="close-modal" onClick={() => setShowSheet(false)} aria-label="닫기">×</button></div></header>
+            {showCorrection && <section className="time-correction" aria-label="저장 기록 시간 보정"><div className="time-correction-heading"><div><b>밀려 쓴 기록 옮기기</b><p>선택 범위에서 저장된 기록만 이동합니다. 작성 중인 값은 바뀌지 않습니다.</p></div>{correctionUndo && <button type="button" className="correction-undo" onClick={undoTimeCorrection}>방금 보정 되돌리기</button>}</div><div className="time-correction-controls"><label><span>시작 구간</span><select value={correctionStart} onChange={(event) => { setCorrectionStart(event.target.value); setCorrectionState({ kind: "idle", message: "" }); }}>{slots.map((item) => <option key={`correction-start-${item.key}`} value={item.key}>{item.label}</option>)}</select></label><label><span>끝 구간</span><select value={correctionEnd} onChange={(event) => { setCorrectionEnd(event.target.value); setCorrectionState({ kind: "idle", message: "" }); }}>{slots.map((item) => <option key={`correction-end-${item.key}`} value={item.key}>{item.label}</option>)}</select></label><label><span>이동 방향</span><select value={correctionOffset} onChange={(event) => { setCorrectionOffset(Number(event.target.value) as -1 | 1); setCorrectionState({ kind: "idle", message: "" }); }}><option value={-1}>15분 앞으로 · 18:15 → 18:00</option><option value={1}>15분 뒤로 · 18:00 → 18:15</option></select></label><button type="button" className="correction-apply" onClick={applyTimeCorrection}>보정 적용</button></div>{correctionState.message && <p className={`correction-message ${correctionState.kind}`} role="status">{correctionState.message}</p>}<small>이동할 시간대에 다른 기록이 있으면 덮어쓰지 않고 중단합니다. 저장된 0값 구간은 교체할 수 있습니다.</small></section>}
             {!isGyuhoMode ? <div className="excel-import">
               <div><b>엑셀 자동 입력</b><p>저장된 번호별 차량 수를 같은 15분 시간대의 소계 칸에 넣습니다. 원본 서식과 다른 값은 그대로 유지됩니다.</p></div>
               <label className="excel-file"><input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => { setExcelFile(event.target.files?.[0] ?? null); setExcelState({ kind: "idle", message: "" }); }} /><span>{excelFile ? excelFile.name : "엑셀 파일 선택"}</span></label>
