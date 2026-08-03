@@ -45,6 +45,21 @@ test("12개 모드와 6개 모드의 여러 기록 슬롯을 분리해서 유지
   assert.equal(migrated.library.photo[0].records["00"][1], 3);
   assert.equal(migrated.activeRecordIds.full, "full-b");
   assert.equal(migrated.library.box[0].id, "box-1");
+  assert.equal(migrated.library.gyuho[0].id, "gyuho-1");
+});
+
+test("규호 모드의 방향별 차량 분류 기록을 별도로 저장한다", () => {
+  const classified = { ...counts(0), "1:passenger": 7, "1:busSmall": 2, "12:trailer": 1 };
+  const migrated = migrateToLibrary({
+    mode: "gyuho",
+    records: { "00": classified },
+    drafts: { "01": { ...classified, "1:passenger": 8 } },
+    slot: "01",
+  });
+  assert.equal(migrated.library.gyuho[0].records["00"]["1:passenger"], 7);
+  assert.equal(migrated.library.gyuho[0].records["00"]["12:trailer"], 1);
+  assert.equal(migrated.library.gyuho[0].drafts["01"]["1:passenger"], 8);
+  assert.deepEqual(migrated.library.full[0].records, {});
 });
 
 test("모드 3 기록도 다른 모드와 별도 저장한다", () => {

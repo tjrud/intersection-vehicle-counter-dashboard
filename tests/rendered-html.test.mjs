@@ -96,10 +96,28 @@ test("모드 1과 2의 카드 클릭 및 버튼 조작 방식을 선택한다", 
     readFile(new URL("app/globals.css", root), "utf8"),
   ]);
   assert.match(page, /type InputStyle = "card" \| "buttons"/);
-  assert.match(page, /const usesCardControls = isBoxMode \|\| inputStyle === "card"/);
+  assert.match(page, /const usesCardControls = isBoxMode \|\| isGyuhoMode \|\| inputStyle === "card"/);
   assert.match(page, /모드 1·2 조작 방식/);
-  assert.match(page, /모드 3은 항상 카드 클릭 방식/);
-  assert.match(page, /inputStyle, soundOn/);
+  assert.match(page, /모드 3과 규호 모드는 항상 카드 클릭 방식/);
+  assert.match(page, /inputStyle, selectedVehicle, soundOn/);
   assert.match(css, /\.click-counter/);
   assert.match(css, /\.input-style-options/);
+});
+
+test("규호 모드에서 12방향과 6개 차량 분류를 집계한다", async () => {
+  const [page, storage, css] = await Promise.all([
+    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/record-storage.mjs", root), "utf8"),
+    readFile(new URL("app/globals.css", root), "utf8"),
+  ]);
+  assert.match(page, /const gyuhoMode/);
+  assert.match(page, /\{ id: 6, area: "n1" \}.*\{ id: 4, area: "n3" \}/s);
+  assert.match(page, /\{ id: 10, area: "s1" \}.*\{ id: 12, area: "s3" \}/s);
+  assert.match(page, /승용/);
+  assert.match(page, /버스/);
+  assert.match(page, /트레일러/);
+  assert.match(page, /vehicleCountKey\(id, selectedVehicle\)/);
+  assert.match(page, /표 복사 또는 CSV 다운로드/);
+  assert.match(storage, /"gyuho"/);
+  assert.match(css, /\.vehicle-selector/);
 });

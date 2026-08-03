@@ -20,15 +20,22 @@ const boxMode = [
   { id: 12, area: "e1" }, { id: 11, area: "e2" }, { id: 10, area: "e3" },
   { id: 7, area: "s1" }, { id: 8, area: "s2" }, { id: 9, area: "s3" },
 ] as const;
+const gyuhoMode = [
+  { id: 6, area: "n1" }, { id: 5, area: "n2" }, { id: 4, area: "n3" },
+  { id: 7, area: "w1" }, { id: 8, area: "w2" }, { id: 9, area: "w3" },
+  { id: 3, area: "e1" }, { id: 2, area: "e2" }, { id: 1, area: "e3" },
+  { id: 10, area: "s1" }, { id: 11, area: "s2" }, { id: 12, area: "s3" },
+] as const;
 
-type Mode = "full" | "photo" | "box";
+type Mode = "full" | "photo" | "box" | "gyuho";
 type Movement = "left" | "straight" | "right";
+type VehicleCategory = "passenger" | "busSmall" | "busLarge" | "truckSmall" | "truckLarge" | "trailer";
 type Theme = "light" | "dark" | "green";
 type InputStyle = "card" | "buttons";
 type SoundName = "click" | "clack" | "soft";
 type CounterSound = SoundName | "default";
 type CounterSounds = Record<Mode, Record<number, CounterSound>>;
-type Counts = Record<number, number>;
+type Counts = Record<string, number>;
 type Records = Record<string, Counts>;
 type Drafts = Record<string, Counts>;
 type RecordSet = { id: string; name: string; records: Records; drafts: Drafts; slot: string };
@@ -48,21 +55,37 @@ const slots = Array.from({ length: 96 }, (_, index) => {
   };
 });
 const excelColumns = ["H", "P", "X"] as const;
+const vehicleCategories: Array<{ key: VehicleCategory; group: string; label: string }> = [
+  { key: "passenger", group: "소형", label: "승용" },
+  { key: "busSmall", group: "버스", label: "소형" },
+  { key: "busLarge", group: "버스", label: "대형" },
+  { key: "truckSmall", group: "화물", label: "소형" },
+  { key: "truckLarge", group: "화물", label: "중·대형" },
+  { key: "trailer", group: "화물", label: "트레일러" },
+];
+const vehicleKeys = vehicleCategories.map(({ key }) => key);
+const vehicleCountKey = (id: number, category: VehicleCategory) => `${id}:${category}`;
+const vehicleLabel = (category: VehicleCategory) => {
+  const item = vehicleCategories.find(({ key }) => key === category)!;
+  return item.key === "passenger" ? item.label : `${item.group} ${item.label}`;
+};
 const soundNames: SoundName[] = ["click", "clack", "soft"];
 const counterIdsByMode: Record<Mode, number[]> = {
   full: Array.from({ length: 12 }, (_, index) => index + 1),
   photo: [2, 3, 4, 6, 7, 8],
   box: Array.from({ length: 12 }, (_, index) => index + 1),
+  gyuho: Array.from({ length: 12 }, (_, index) => index + 1),
 };
 const emptyCounterSounds = (): CounterSounds => ({
   full: Object.fromEntries(counterIdsByMode.full.map((id) => [id, "default"])) as Record<number, CounterSound>,
   photo: Object.fromEntries(counterIdsByMode.photo.map((id) => [id, "default"])) as Record<number, CounterSound>,
   box: Object.fromEntries(counterIdsByMode.box.map((id) => [id, "default"])) as Record<number, CounterSound>,
+  gyuho: Object.fromEntries(counterIdsByMode.gyuho.map((id) => [id, "default"])) as Record<number, CounterSound>,
 });
 const normalizeCounterSounds = (value: unknown): CounterSounds => {
   const normalized = emptyCounterSounds();
   if (!value || typeof value !== "object") return normalized;
-  for (const modeName of ["full", "photo", "box"] as Mode[]) {
+  for (const modeName of ["full", "photo", "box", "gyuho"] as Mode[]) {
     const source = (value as Partial<Record<Mode, Record<number, unknown>>>)[modeName];
     if (!source || typeof source !== "object") continue;
     counterIdsByMode[modeName].forEach((id) => {
@@ -75,8 +98,8 @@ const normalizeCounterSounds = (value: unknown): CounterSounds => {
 const soundLabel = (name: SoundName) => name === "click" ? "클릭" : name === "clack" ? "딸칵" : "부드러운 톤";
 const movementOf = (id: number): Movement => id % 3 === 1 ? "left" : id % 3 === 2 ? "straight" : "right";
 const movementName = (movement: Movement) => movement === "left" ? "좌회전" : movement === "straight" ? "직진" : "우회전";
-const modeName = (mode: Mode) => mode === "full" ? "모드 1 · 12개" : mode === "photo" ? "모드 2 · 6개" : "모드 3 · 12개";
-const modeFileName = (mode: Mode) => mode === "full" ? "모드1_12개" : mode === "photo" ? "모드2_6개" : "모드3_12개";
+const modeName = (mode: Mode) => mode === "full" ? "모드 1 · 12개" : mode === "photo" ? "모드 2 · 6개" : mode === "box" ? "모드 3 · 12개" : "규호 모드 · 차량 분류";
+const modeFileName = (mode: Mode) => mode === "full" ? "모드1_12개" : mode === "photo" ? "모드2_6개" : mode === "box" ? "모드3_12개" : "규호모드_차량분류";
 
 const parseXml = (text: string) => {
   const document = new DOMParser().parseFromString(text, "application/xml");
@@ -123,6 +146,7 @@ export default function Home() {
   const [copyState, setCopyState] = useState("표 복사");
   const [theme, setTheme] = useState<Theme>("light");
   const [inputStyle, setInputStyle] = useState<InputStyle>("card");
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleCategory>("passenger");
   const [soundOn, setSoundOn] = useState(false);
   const [soundName, setSoundName] = useState<SoundName>("click");
   const [counterSounds, setCounterSounds] = useState<CounterSounds>(emptyCounterSounds);
@@ -146,9 +170,10 @@ export default function Home() {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- 브라우저에 저장된 현장 기록을 최초 한 번 복원합니다.
         setLibrary(migrated.library as RecordLibrary);
         setActiveRecordIds(migrated.activeRecordIds as ActiveRecordIds);
-        setMode(parsed.mode === "photo" ? "photo" : parsed.mode === "box" ? "box" : "full");
+        setMode(parsed.mode === "photo" ? "photo" : parsed.mode === "box" ? "box" : parsed.mode === "gyuho" ? "gyuho" : "full");
         setTheme(["light", "dark", "green"].includes(parsed.theme) ? parsed.theme : "light");
         setInputStyle(parsed.inputStyle === "buttons" ? "buttons" : "card");
+        setSelectedVehicle(vehicleKeys.includes(parsed.selectedVehicle) ? parsed.selectedVehicle : "passenger");
         setSoundOn(Boolean(parsed.soundOn));
         setSoundName(["click", "clack", "soft"].includes(parsed.soundName) ? parsed.soundName : "click");
         setCounterSounds(normalizeCounterSounds(parsed.counterSounds));
@@ -161,8 +186,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (ready) localStorage.setItem("intersection-timed-records-v3", JSON.stringify({ library, activeRecordIds, mode, theme, inputStyle, soundOn, soundName, counterSounds, volume }));
-  }, [library, activeRecordIds, mode, theme, inputStyle, soundOn, soundName, counterSounds, volume, ready]);
+    if (ready) localStorage.setItem("intersection-timed-records-v3", JSON.stringify({ library, activeRecordIds, mode, theme, inputStyle, selectedVehicle, soundOn, soundName, counterSounds, volume }));
+  }, [library, activeRecordIds, mode, theme, inputStyle, selectedVehicle, soundOn, soundName, counterSounds, volume, ready]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -174,17 +199,24 @@ export default function Home() {
     compressorRef.current = null;
   }, []);
 
-  const positions = mode === "full" ? fullMode : mode === "photo" ? photoMode : boxMode;
+  const positions = mode === "full" ? fullMode : mode === "photo" ? photoMode : mode === "box" ? boxMode : gyuhoMode;
   const ids = mode === "photo" ? [2, 3, 4, 6, 7, 8] : Array.from({ length: 12 }, (_, i) => i + 1);
   const isBoxMode = mode === "box";
-  const usesCardControls = isBoxMode || inputStyle === "card";
+  const isGyuhoMode = mode === "gyuho";
+  const usesCardControls = isBoxMode || isGyuhoMode || inputStyle === "card";
   const modeRecordSets = library[mode];
   const activeRecordId = activeRecordIds[mode];
   const activeRecordSet = modeRecordSets.find((recordSet) => recordSet.id === activeRecordId) ?? modeRecordSets[0];
   const { records, drafts, slot } = activeRecordSet;
   const safeRecordName = activeRecordSet.name.replace(/[\\/:*?"<>|]/g, "_");
   const counts = drafts[slot] ?? records[slot] ?? emptyCounts();
-  const total = useMemo(() => positions.reduce((sum, { id }) => sum + counts[id], 0), [counts, positions]);
+  const total = useMemo(() => isGyuhoMode
+    ? positions.reduce((sum, { id }) => sum + vehicleKeys.reduce((vehicleSum, category) => vehicleSum + (counts[vehicleCountKey(id, category)] ?? 0), 0), 0)
+    : positions.reduce((sum, { id }) => sum + (counts[id] ?? 0), 0), [counts, isGyuhoMode, positions]);
+  const selectedVehicleTotal = useMemo(() => positions.reduce((sum, { id }) => sum + (counts[vehicleCountKey(id, selectedVehicle)] ?? 0), 0), [counts, positions, selectedVehicle]);
+  const tableColumns = isGyuhoMode
+    ? ids.flatMap((id) => vehicleCategories.map(({ key, group, label }) => ({ key: vehicleCountKey(id, key), label: `${id}번 ${key === "passenger" ? label : `${group} ${label}`}` })))
+    : ids.map((id) => ({ key: String(id), label: `${id}번` }));
   const savedCurrent = Boolean(records[slot]);
 
   const updateActiveRecordSet = (update: (recordSet: RecordSet) => RecordSet) => {
@@ -298,12 +330,13 @@ export default function Home() {
   };
 
   const changeCount = (id: number, amount: number) => {
-    if (amount < 0 && counts[id] === 0) return;
+    const countKey = isGyuhoMode ? vehicleCountKey(id, selectedVehicle) : String(id);
+    if (amount < 0 && (counts[countKey] ?? 0) === 0) return;
     const configuredSound = counterSounds[mode][id] ?? "default";
     playSound(false, amount < 0 ? -1 : 1, configuredSound === "default" ? soundName : configuredSound);
     updateActiveRecordSet((recordSet) => {
       const base = recordSet.drafts[slot] ?? recordSet.records[slot] ?? emptyCounts();
-      return { ...recordSet, drafts: { ...recordSet.drafts, [slot]: { ...base, [id]: Math.max(0, base[id] + amount) } } };
+      return { ...recordSet, drafts: { ...recordSet.drafts, [slot]: { ...base, [countKey]: Math.max(0, (base[countKey] ?? 0) + amount) } } };
     });
   };
 
@@ -326,7 +359,7 @@ export default function Home() {
   };
 
   const tableText = (separator = "\t", savedOnly = false, hourlySpacing = false) => {
-    const header = ["시간", ...ids.map((id) => `${id}번`), "합계"];
+    const header = ["시간", ...tableColumns.map(({ label }) => label), "합계"];
     const sourceSlots = savedOnly ? slots.filter(({ key: rowSlot }) => Boolean(records[rowSlot])) : slots;
     const rows: Array<Array<string | number>> = [];
     sourceSlots.forEach(({ key: rowSlot, label }, index) => {
@@ -335,7 +368,7 @@ export default function Home() {
         rows.push(Array(header.length).fill(""));
       }
       const row = records[rowSlot] ?? emptyCounts();
-      const values = ids.map((id) => row[id] ?? 0);
+      const values = tableColumns.map(({ key }) => row[key] ?? 0);
       rows.push([label, ...values, values.reduce((sum, value) => sum + value, 0)]);
     });
     return [header, ...rows].map((row) => row.join(separator)).join("\n");
@@ -363,6 +396,10 @@ export default function Home() {
 
   const fillExcelTemplate = async () => {
     const savedSlots = Object.entries(records);
+    if (isGyuhoMode) {
+      setExcelState({ kind: "error", message: "규호 모드의 차량 분류 기록은 표 복사 또는 CSV 다운로드를 이용해 주세요." });
+      return;
+    }
     if (!excelFile) {
       setExcelState({ kind: "error", message: "먼저 수정할 .xlsx 파일을 선택해 주세요." });
       return;
@@ -497,14 +534,16 @@ export default function Home() {
         <button type="button" className={mode === "full" ? "active" : ""} aria-pressed={mode === "full"} onClick={() => selectMode("full")}><b>모드 1 · 12개</b><span>기본 배치</span></button>
         <button type="button" className={mode === "photo" ? "active" : ""} aria-pressed={mode === "photo"} onClick={() => selectMode("photo")}><b>모드 2 · 6개</b><span>2·3·4·6·7·8</span></button>
         <button type="button" className={mode === "box" ? "active" : ""} aria-pressed={mode === "box"} onClick={() => selectMode("box")}><b>모드 3 · 12개</b><span>카드 클릭 방식</span></button>
+        <button type="button" className={mode === "gyuho" ? "active" : ""} aria-pressed={mode === "gyuho"} onClick={() => selectMode("gyuho")}><b>규호 모드</b><span>12방향 · 차량 분류</span></button>
       </nav>
 
       {isBoxMode && <div className="movement-legend" aria-label="이동 유형 색상 안내"><span className="legend-left">좌회전</span><span className="legend-straight">직진</span><span className="legend-right">우회전</span><small>카드 좌클릭 +1 · 우클릭 −1</small></div>}
+      {isGyuhoMode && <section className="vehicle-selector" aria-label="차량 분류 선택"><header><div><b>차량 분류 선택</b><span>현재 <strong>{vehicleLabel(selectedVehicle)}</strong> {selectedVehicleTotal.toLocaleString()}대 집계</span></div><small>분류를 먼저 선택하고 방향 카드를 좌클릭 +1 · 우클릭 −1</small></header><div className="vehicle-options">{vehicleCategories.map(({ key, group, label }) => <button type="button" key={key} className={selectedVehicle === key ? "selected" : ""} aria-pressed={selectedVehicle === key} onClick={() => setSelectedVehicle(key)}><small>{group}</small><b>{label}</b></button>)}</div></section>}
 
-      <section className={`counter-panel ${mode === "photo" ? "photo-layout" : "full-layout"} ${isBoxMode ? "box-mode-layout" : ""}`} aria-label="번호별 차량 카운터">
+      <section className={`counter-panel ${mode === "photo" ? "photo-layout" : "full-layout"} ${isBoxMode ? "box-mode-layout" : ""} ${isGyuhoMode ? "gyuho-layout" : ""}`} aria-label="번호별 차량 카운터">
         <div className="intersection" aria-hidden="true"><div className="road vertical-road" /><div className="road horizontal-road" /><div className="center-mark"><span>{slots[Number(slot)].label}</span><b>TOTAL</b><strong>{total}</strong></div></div>
-        {positions.map(({ id, area }) => { const movement = movementOf(id); return (
-          <article className={`counter counter-${area} ${usesCardControls ? "click-counter" : ""} ${isBoxMode ? `box-counter movement-${movement}` : ""}`} key={`${mode}-${id}`} role={usesCardControls ? "button" : undefined} tabIndex={usesCardControls ? 0 : undefined} aria-label={usesCardControls ? `${id}번${isBoxMode ? ` ${movementName(movement)}` : ""}, 좌클릭 추가, 우클릭 빼기, 현재 ${counts[id]}대` : undefined} onClick={usesCardControls ? () => changeCount(id, 1) : undefined} onContextMenu={usesCardControls ? (event) => { event.preventDefault(); changeCount(id, -1); } : undefined} onKeyDown={usesCardControls ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); changeCount(id, 1); } } : undefined}><span className="number-badge">{id}</span><output aria-label={`${id}번 현재 ${counts[id]}대`}>{counts[id].toLocaleString()}</output>{usesCardControls ? <span className="counter-action-hint">{isBoxMode ? movementName(movement) : "좌 +1 · 우 −1"}</span> : <div className="controls"><button type="button" className="minus" onClick={() => changeCount(id, -1)} disabled={counts[id] === 0} aria-label={`${id}번 1대 빼기`}>−</button><button type="button" className="plus" onClick={() => changeCount(id, 1)} aria-label={`${id}번 1대 추가`}>+</button></div>}</article>
+        {positions.map(({ id, area }) => { const movement = movementOf(id); const countValue = isGyuhoMode ? counts[vehicleCountKey(id, selectedVehicle)] ?? 0 : counts[id] ?? 0; return (
+          <article className={`counter counter-${area} ${usesCardControls ? "click-counter" : ""} ${isBoxMode ? `box-counter movement-${movement}` : ""} ${isGyuhoMode ? "gyuho-counter" : ""}`} key={`${mode}-${id}`} role={usesCardControls ? "button" : undefined} tabIndex={usesCardControls ? 0 : undefined} aria-label={usesCardControls ? `${id}번${isBoxMode ? ` ${movementName(movement)}` : isGyuhoMode ? ` ${vehicleLabel(selectedVehicle)}` : ""}, 좌클릭 추가, 우클릭 빼기, 현재 ${countValue}대` : undefined} onClick={usesCardControls ? () => changeCount(id, 1) : undefined} onContextMenu={usesCardControls ? (event) => { event.preventDefault(); changeCount(id, -1); } : undefined} onKeyDown={usesCardControls ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); changeCount(id, 1); } } : undefined}><span className="number-badge">{id}</span><output aria-label={`${id}번 현재 ${countValue}대`}>{countValue.toLocaleString()}</output>{usesCardControls ? <span className="counter-action-hint">{isBoxMode ? movementName(movement) : isGyuhoMode ? `${vehicleLabel(selectedVehicle)} · 좌 +1 · 우 −1` : "좌 +1 · 우 −1"}</span> : <div className="controls"><button type="button" className="minus" onClick={() => changeCount(id, -1)} disabled={countValue === 0} aria-label={`${id}번 1대 빼기`}>−</button><button type="button" className="plus" onClick={() => changeCount(id, 1)} aria-label={`${id}번 1대 추가`}>+</button></div>}</article>
         ); })}
       </section>
 
@@ -520,13 +559,13 @@ export default function Home() {
         <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && setShowSheet(false)}>
           <section className="sheet-modal" role="dialog" aria-modal="true" aria-label="저장 기록 표">
             <header><div><h2>{activeRecordSet.name} 저장 기록</h2><p>{modeName(mode)} · {Object.keys(records).length}/96 구간 저장 · 자정 이후에도 계속 이어집니다</p></div><div className="sheet-actions"><button type="button" onClick={copyTable}>{copyState}</button><button type="button" onClick={downloadCsv}>CSV 다운로드</button><button type="button" className="close-modal" onClick={() => setShowSheet(false)} aria-label="닫기">×</button></div></header>
-            <div className="excel-import">
+            {!isGyuhoMode ? <div className="excel-import">
               <div><b>엑셀 자동 입력</b><p>저장된 번호별 차량 수를 같은 15분 시간대의 소계 칸에 넣습니다. 원본 서식과 다른 값은 그대로 유지됩니다.</p></div>
               <label className="excel-file"><input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => { setExcelFile(event.target.files?.[0] ?? null); setExcelState({ kind: "idle", message: "" }); }} /><span>{excelFile ? excelFile.name : "엑셀 파일 선택"}</span></label>
               <button type="button" className="excel-fill" disabled={excelState.kind === "working"} onClick={fillExcelTemplate}>{excelState.kind === "working" ? "입력 중…" : "기록 입력 후 다운로드"}</button>
               {excelState.message && <p className={`excel-message ${excelState.kind}`} role="status">{excelState.message}</p>}
-            </div>
-            <div className="table-wrap"><table><thead><tr><th>시간</th>{ids.map((id) => <th key={id}>{id}번</th>)}<th>합계</th></tr></thead><tbody>{slots.map(({ key: rowSlot, label }) => { const row = records[rowSlot]; const values = ids.map((id) => row?.[id] ?? 0); const sum = values.reduce((a, b) => a + b, 0); return <tr className={row ? "has-data" : ""} key={rowSlot}><th>{label}</th>{values.map((value, index) => <td key={ids[index]}>{value}</td>)}<td className="row-total">{sum}</td></tr>; })}</tbody></table></div>
+            </div> : <div className="gyuho-export-note"><b>차량 분류 기록 내보내기</b><p>규호 모드는 방향별 6개 차량 분류를 표 복사 또는 CSV 다운로드로 내보냅니다.</p></div>}
+            <div className="table-wrap"><table><thead><tr><th>시간</th>{tableColumns.map(({ key, label }) => <th key={key}>{label}</th>)}<th>합계</th></tr></thead><tbody>{slots.map(({ key: rowSlot, label }) => { const row = records[rowSlot]; const values = tableColumns.map(({ key }) => row?.[key] ?? 0); const sum = values.reduce((a, b) => a + b, 0); return <tr className={row ? "has-data" : ""} key={rowSlot}><th>{label}</th>{values.map((value, index) => <td key={tableColumns[index].key}>{value}</td>)}<td className="row-total">{sum}</td></tr>; })}</tbody></table></div>
           </section>
         </div>
       )}
@@ -541,12 +580,12 @@ export default function Home() {
                 <button type="button" className={theme === "dark" ? "selected" : ""} onClick={() => setTheme("dark")}><i className="swatch dark" /><span><b>검정색</b><small>어두운 환경</small></span></button>
                 <button type="button" className={theme === "green" ? "selected" : ""} onClick={() => setTheme("green")}><i className="swatch green" /><span><b>은은한 그린</b><small>눈이 편안한 색감</small></span></button>
               </div></fieldset>
-              <fieldset><legend>모드 1·2 조작 방식</legend><div className="input-style-options"><button type="button" className={inputStyle === "card" ? "selected" : ""} onClick={() => setInputStyle("card")}><b>카드 클릭</b><small>좌클릭 +1 · 우클릭 −1</small></button><button type="button" className={inputStyle === "buttons" ? "selected" : ""} onClick={() => setInputStyle("buttons")}><b>− / + 버튼</b><small>모바일에서 편리한 방식</small></button></div><p className="input-style-note">모드 3은 항상 카드 클릭 방식으로 작동합니다.</p></fieldset>
+              <fieldset><legend>모드 1·2 조작 방식</legend><div className="input-style-options"><button type="button" className={inputStyle === "card" ? "selected" : ""} onClick={() => setInputStyle("card")}><b>카드 클릭</b><small>좌클릭 +1 · 우클릭 −1</small></button><button type="button" className={inputStyle === "buttons" ? "selected" : ""} onClick={() => setInputStyle("buttons")}><b>− / + 버튼</b><small>모바일에서 편리한 방식</small></button></div><p className="input-style-note">모드 3과 규호 모드는 항상 카드 클릭 방식으로 작동합니다.</p></fieldset>
               <fieldset><legend>버튼 소리</legend><label className="sound-toggle"><span><b>소리 사용</b><small>− / + 버튼을 누를 때 재생</small></span><input type="checkbox" checked={soundOn} onChange={(e) => setSoundOn(e.target.checked)} /><i /></label>
                 <div className="sound-options">{soundNames.map((name) => <button type="button" key={name} disabled={!soundOn} className={soundName === name ? "selected" : ""} onClick={() => setSoundName(name)}>{soundLabel(name)}</button>)}</div>
                 <label className={`volume-control ${!soundOn ? "disabled" : ""}`}><span><b>볼륨</b><output>{volume}%</output></span><input type="range" min="0" max="100" step="5" value={volume} disabled={!soundOn} onChange={(e) => setVolume(Number(e.target.value))} aria-label="버튼 소리 볼륨" /></label>
                 <button type="button" className="sound-preview" disabled={!soundOn} onClick={() => playSound(true)}>소리 미리 듣기</button>
-                <div className={`counter-sound-settings ${!soundOn ? "disabled" : ""}`}><div className="counter-sound-heading"><b>번호별 소리</b><small>기본 소리와 다르게 들릴 번호만 변경하세요</small></div><div className="sound-mode-switch">{(["full", "photo", "box"] as Mode[]).map((soundMode) => <button type="button" key={soundMode} disabled={!soundOn} className={soundConfigMode === soundMode ? "selected" : ""} onClick={() => setSoundConfigMode(soundMode)}>{modeName(soundMode)}</button>)}</div><div className="counter-sound-grid">{counterIdsByMode[soundConfigMode].map((id) => <label key={`${soundConfigMode}-${id}`}><b>{id}번</b><select disabled={!soundOn} value={counterSounds[soundConfigMode][id]} onChange={(event) => { const nextSound = event.target.value as CounterSound; setCounterSounds((current) => ({ ...current, [soundConfigMode]: { ...current[soundConfigMode], [id]: nextSound } })); playSound(true, 1, nextSound === "default" ? soundName : nextSound); }} aria-label={`${modeName(soundConfigMode)} ${id}번 소리`}><option value="default">기본 · {soundLabel(soundName)}</option>{soundNames.map((name) => <option key={name} value={name}>{soundLabel(name)}</option>)}</select></label>)}</div></div>
+                <div className={`counter-sound-settings ${!soundOn ? "disabled" : ""}`}><div className="counter-sound-heading"><b>번호별 소리</b><small>기본 소리와 다르게 들릴 번호만 변경하세요</small></div><div className="sound-mode-switch">{(["full", "photo", "box", "gyuho"] as Mode[]).map((soundMode) => <button type="button" key={soundMode} disabled={!soundOn} className={soundConfigMode === soundMode ? "selected" : ""} onClick={() => setSoundConfigMode(soundMode)}>{modeName(soundMode)}</button>)}</div><div className="counter-sound-grid">{counterIdsByMode[soundConfigMode].map((id) => <label key={`${soundConfigMode}-${id}`}><b>{id}번</b><select disabled={!soundOn} value={counterSounds[soundConfigMode][id]} onChange={(event) => { const nextSound = event.target.value as CounterSound; setCounterSounds((current) => ({ ...current, [soundConfigMode]: { ...current[soundConfigMode], [id]: nextSound } })); playSound(true, 1, nextSound === "default" ? soundName : nextSound); }} aria-label={`${modeName(soundConfigMode)} ${id}번 소리`}><option value="default">기본 · {soundLabel(soundName)}</option>{soundNames.map((name) => <option key={name} value={name}>{soundLabel(name)}</option>)}</select></label>)}</div></div>
               </fieldset>
             </div>
             <footer><button type="button" onClick={() => setShowSettings(false)}>완료</button></footer>
