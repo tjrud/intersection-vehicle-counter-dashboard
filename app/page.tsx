@@ -47,7 +47,8 @@ type CounterSounds = Record<Mode, Record<number, CounterSound>>;
 type Counts = Record<string, number>;
 type Records = Record<string, Counts>;
 type Drafts = Record<string, Counts>;
-type RecordSet = { id: string; name: string; records: Records; drafts: Drafts; slot: string; customConfig?: CustomConfig };
+type ClickLog = { t: number; s: string; n: number; v?: VehicleCategory; m?: Movement; d: -1 | 1; b: number; a: number };
+type RecordSet = { id: string; name: string; records: Records; drafts: Drafts; slot: string; clickLogs: ClickLog[]; customConfig?: CustomConfig };
 type RecordLibrary = Record<Mode, RecordSet[]>;
 type ActiveRecordIds = Record<Mode, string>;
 type ExcelState = { kind: "idle" | "working" | "success" | "error"; message: string };
@@ -170,6 +171,7 @@ export default function Home() {
   const [ready, setReady] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [showSheet, setShowSheet] = useState(false);
+  const [sheetView, setSheetView] = useState<"summary" | "clicks">("summary");
   const [showSettings, setShowSettings] = useState(false);
   const [showCustomSettings, setShowCustomSettings] = useState(false);
   const [customConfig, setCustomConfig] = useState<CustomConfig>(() => defaultCustomConfig() as CustomConfig);
@@ -294,7 +296,7 @@ export default function Home() {
   const createRecordSet = () => {
     const nextNumber = modeRecordSets.length + 1;
     const id = `${mode}-${crypto.randomUUID()}`;
-    const nextRecordSet: RecordSet = { id, name: `기록 ${nextNumber}`, records: {}, drafts: {}, slot: "00", ...(isCustomMode ? { customConfig: normalizeCustomConfig(customConfig) as CustomConfig } : {}) };
+    const nextRecordSet: RecordSet = { id, name: `기록 ${nextNumber}`, records: {}, drafts: {}, slot: "00", clickLogs: [], ...(isCustomMode ? { customConfig: normalizeCustomConfig(customConfig) as CustomConfig } : {}) };
     setLibrary((current) => ({ ...current, [mode]: [...current[mode], nextRecordSet] }));
     setActiveRecordIds((current) => ({ ...current, [mode]: id }));
     setEditingRecordName(false);
@@ -376,7 +378,7 @@ export default function Home() {
   const deleteRecordSet = () => {
     if (modeRecordSets.length === 1) {
       const replacementId = `${mode}-${crypto.randomUUID()}`;
-      const replacement: RecordSet = { id: replacementId, name: "기록 1", records: {}, drafts: {}, slot: "00", ...(isCustomMode ? { customConfig: normalizeCustomConfig(customConfig) as CustomConfig } : {}) };
+      const replacement: RecordSet = { id: replacementId, name: "기록 1", records: {}, drafts: {}, slot: "00", clickLogs: [], ...(isCustomMode ? { customConfig: normalizeCustomConfig(customConfig) as CustomConfig } : {}) };
       setLibrary((current) => ({ ...current, [mode]: [replacement] }));
       setActiveRecordIds((current) => ({ ...current, [mode]: replacementId }));
     } else {
@@ -447,7 +449,18 @@ export default function Home() {
     playSound(false, amount < 0 ? -1 : 1, configuredSound === "default" ? soundName : configuredSound);
     updateActiveRecordSet((recordSet) => {
       const base = recordSet.drafts[slot] ?? recordSet.records[slot] ?? emptyCounts();
-      return { ...recordSet, drafts: { ...recordSet.drafts, [slot]: { ...base, [countKey]: Math.max(0, (base[countKey] ?? 0) + amount) } } };
+      const before = base[countKey] ?? 0;
+      const after = Math.max(0, before + amount);
+      const clickLog: ClickLog = {
+        t: Date.now(), s: slot, n: id, d: amount < 0 ? -1 : 1, b: before, a: after,
+        ...(isGyuhoMode ? { v: selectedVehicle } : {}),
+        ...((isBoxMode || isCustomMode) ? { m: movementForCounter(id) } : {}),
+      };
+      return {
+        ...recordSet,
+        drafts: { ...recordSet.drafts, [slot]: { ...base, [countKey]: after } },
+        clickLogs: [...(recordSet.clickLogs ?? []), clickLog],
+      };
     });
   };
 
@@ -530,6 +543,52 @@ export default function Home() {
     const link = document.createElement("a");
     link.href = url;
     link.download = `차량카운트_${modeFileName(mode)}_${safeRecordName}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const formatClickTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const milliseconds = String(date.getMilliseconds()).padStart(3, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${milliseconds}`;
+  };
+
+  const clickLogRows = () => (activeRecordSet.clickLogs ?? []).map((log) => [
+    formatClickTime(log.t),
+    slots[Number(log.s)]?.label ?? log.s,
+    modeName(mode),
+    activeRecordSet.name,
+    isTwoWayMode ? twoWayLabel(log.n) : `${log.n}번`,
+    log.v ? vehicleLabel(log.v) : log.m ? movementName(log.m) : "-",
+    log.d > 0 ? "+1" : "-1",
+    log.b,
+    log.a,
+  ]);
+
+  const clickLogText = (separator = "\t") => {
+    const header = ["클릭 시각", "기록 시간", "모드", "기록명", "번호", "방향/차량 분류", "조작", "변경 전", "변경 후"];
+    return [header, ...clickLogRows()].map((row) => row.map((value) => {
+      const text = String(value);
+      return separator === "," && /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+    }).join(separator)).join("\n");
+  };
+
+  const copyClickLogs = async () => {
+    try {
+      await navigator.clipboard.writeText(clickLogText());
+      setCopyState("복사 완료");
+      window.setTimeout(() => setCopyState("표 복사"), 1600);
+    } catch {
+      setCopyState("복사 실패");
+    }
+  };
+
+  const downloadClickLogs = () => {
+    const csv = `\uFEFF${clickLogText(",")}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `클릭로그_${modeFileName(mode)}_${safeRecordName}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -736,7 +795,8 @@ export default function Home() {
       {showSheet && (
         <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && setShowSheet(false)}>
           <section className="sheet-modal" role="dialog" aria-modal="true" aria-label="저장 기록 표">
-            <header><div><h2>{activeRecordSet.name} 저장 기록</h2><p>{modeName(mode)} · {Object.keys(records).length}/96 구간 저장 · 자정 이후에도 계속 이어집니다</p></div><div className="sheet-actions"><button type="button" className="time-correction-open" onClick={openCorrection}>시간 보정</button><button type="button" onClick={copyTable}>{copyState}</button><button type="button" onClick={downloadCsv}>CSV 다운로드</button><button type="button" className="close-modal" onClick={() => setShowSheet(false)} aria-label="닫기">×</button></div></header>
+            <header><div><h2>{activeRecordSet.name} 저장 기록</h2><p>{sheetView === "summary" ? `${modeName(mode)} · ${Object.keys(records).length}/96 구간 저장 · 자정 이후에도 계속 이어집니다` : `${modeName(mode)} · 클릭 ${activeRecordSet.clickLogs.length.toLocaleString()}건 · 누른 실제 시각을 기록합니다`}</p></div><div className="sheet-actions"><button type="button" className="sheet-view-toggle" onClick={() => { setSheetView((current) => current === "summary" ? "clicks" : "summary"); setShowCorrection(false); setCopyState("표 복사"); }}>{sheetView === "summary" ? `클릭 로그 ${activeRecordSet.clickLogs.length.toLocaleString()}건` : "15분 집계"}</button>{sheetView === "summary" && <button type="button" className="time-correction-open" onClick={openCorrection}>시간 보정</button>}<button type="button" onClick={sheetView === "summary" ? copyTable : copyClickLogs}>{copyState}</button><button type="button" onClick={sheetView === "summary" ? downloadCsv : downloadClickLogs}>{sheetView === "summary" ? "CSV 다운로드" : "로그 CSV"}</button><button type="button" className="close-modal" onClick={() => setShowSheet(false)} aria-label="닫기">×</button></div></header>
+            {sheetView === "summary" ? <>
             {showCorrection && <section className="time-correction" aria-label="저장 기록 시간 보정"><div className="time-correction-heading"><div><b>밀려 쓴 기록 옮기기</b><p>선택 범위에서 저장된 기록만 이동합니다. 작성 중인 값은 바뀌지 않습니다.</p></div>{correctionUndo && <button type="button" className="correction-undo" onClick={undoTimeCorrection}>방금 보정 되돌리기</button>}</div><div className="time-correction-controls"><label><span>시작 구간</span><select value={correctionStart} onChange={(event) => { setCorrectionStart(event.target.value); setCorrectionState({ kind: "idle", message: "" }); }}>{slots.map((item) => <option key={`correction-start-${item.key}`} value={item.key}>{item.label}</option>)}</select></label><label><span>끝 구간</span><select value={correctionEnd} onChange={(event) => { setCorrectionEnd(event.target.value); setCorrectionState({ kind: "idle", message: "" }); }}>{slots.map((item) => <option key={`correction-end-${item.key}`} value={item.key}>{item.label}</option>)}</select></label><label><span>이동 방향</span><select value={correctionOffset} onChange={(event) => { setCorrectionOffset(Number(event.target.value) as -1 | 1); setCorrectionState({ kind: "idle", message: "" }); }}><option value={-1}>15분 앞으로 · 18:15 → 18:00</option><option value={1}>15분 뒤로 · 18:00 → 18:15</option></select></label><button type="button" className="correction-apply" onClick={applyTimeCorrection}>보정 적용</button></div>{correctionState.message && <p className={`correction-message ${correctionState.kind}`} role="status">{correctionState.message}</p>}<small>이동할 시간대에 다른 기록이 있으면 덮어쓰지 않고 중단합니다. 저장된 0값 구간은 교체할 수 있습니다.</small></section>}
             {!isGyuhoMode && !isCustomMode ? <div className="excel-import">
               <div><b>엑셀 자동 입력</b><p>{isTwoWayMode ? "저장된 15분 기록을 시간별로 합산해 동두천보건소 양식의 유입·유출 칸에 넣습니다. 기록이 없는 시간과 원본 서식은 그대로 유지됩니다." : "저장된 번호별 차량 수를 같은 15분 시간대의 소계 칸에 넣습니다. 원본 서식과 다른 값은 그대로 유지됩니다."}</p></div>
@@ -745,6 +805,10 @@ export default function Home() {
               {excelState.message && <p className={`excel-message ${excelState.kind}`} role="status">{excelState.message}</p>}
             </div> : <div className="gyuho-export-note"><b>{isCustomMode ? "커스텀 기록 내보내기" : "차량 분류 기록 내보내기"}</b><p>{isCustomMode ? "설정한 번호와 방향은 표 복사 또는 CSV 다운로드로 내보냅니다." : "규호 모드는 방향별 6개 차량 분류를 표 복사 또는 CSV 다운로드로 내보냅니다."}</p></div>}
             <div className="table-wrap"><table><thead><tr><th>시간</th>{tableColumns.map(({ key, label }) => <th key={key}>{label}</th>)}<th>합계</th></tr></thead><tbody>{slots.map(({ key: rowSlot, label }) => { const row = records[rowSlot]; const values = tableColumns.map(({ key }) => row?.[key] ?? 0); const sum = values.reduce((a, b) => a + b, 0); return <tr className={row ? "has-data" : ""} key={rowSlot}><th>{label}</th>{values.map((value, index) => <td key={tableColumns[index].key}>{value}</td>)}<td className="row-total">{sum}</td></tr>; })}</tbody></table></div>
+            </> : <section className="click-log-panel" aria-label="클릭 기록 로그">
+              <div className="click-log-summary"><div><b>{activeRecordSet.clickLogs.length.toLocaleString()}건</b><span>모든 +/− 조작을 실제 클릭 시각 순서로 저장합니다.</span></div><small>최신 기록이 위에 표시됩니다.</small></div>
+              <div className="table-wrap click-log-wrap"><table className="click-log-table"><thead><tr><th>클릭 시각</th><th>기록 시간</th><th>모드</th><th>기록명</th><th>번호</th><th>방향/차량</th><th>조작</th><th>변경 전</th><th>변경 후</th></tr></thead><tbody>{clickLogRows().length ? [...clickLogRows()].reverse().map((row, index) => <tr key={`${row[0]}-${index}`}>{row.map((value, column) => <td className={column === 6 ? value === "+1" ? "log-plus" : "log-minus" : undefined} key={column}>{value}</td>)}</tr>) : <tr><td className="empty-click-log" colSpan={9}>아직 기록된 클릭이 없습니다.</td></tr>}</tbody></table></div>
+            </section>}
           </section>
         </div>
       )}

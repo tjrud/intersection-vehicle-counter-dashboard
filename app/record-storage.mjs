@@ -97,12 +97,27 @@ const normalizeSlot = (value, fallback = "00") => {
   return normalized ?? fallback;
 };
 
+export const normalizeClickLogs = (value) => {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item) => item && typeof item === "object")
+    .map((item) => ({
+      t: Number(item.t), s: slotKey(String(item.s ?? "")), n: Number(item.n),
+      ...(typeof item.v === "string" ? { v: item.v } : {}),
+      ...(typeof item.m === "string" ? { m: item.m } : {}),
+      d: Number(item.d), b: Number(item.b), a: Number(item.a),
+    }))
+    .filter((item) => Number.isFinite(item.t) && item.s && Number.isInteger(item.n)
+      && item.n >= 1 && item.n <= 99 && [-1, 1].includes(item.d)
+      && Number.isFinite(item.b) && Number.isFinite(item.a));
+};
+
 const emptySet = (mode, index = 1) => ({
   id: `${mode}-${index}`,
   name: `기록 ${index}`,
   records: {},
   drafts: {},
   slot: "00",
+  clickLogs: [],
 });
 
 export const importedTwoWayRecords = {
@@ -137,6 +152,7 @@ const normalizeSet = (value, mode, index) => {
     records: migrateRecords(value.records),
     drafts: migrateDrafts(value.drafts),
     slot: normalizeSlot(value.slot),
+    clickLogs: normalizeClickLogs(value.clickLogs),
     ...(mode === "custom" && value.customConfig && typeof value.customConfig === "object" ? { customConfig: value.customConfig } : {}),
   };
 };

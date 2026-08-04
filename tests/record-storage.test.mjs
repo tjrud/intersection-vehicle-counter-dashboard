@@ -1,8 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { importedTwoWayRecords, migrateDrafts, migrateRecords, migrateToLibrary, shiftRecords } from "../app/record-storage.mjs";
+import { importedTwoWayRecords, migrateDrafts, migrateRecords, migrateToLibrary, normalizeClickLogs, shiftRecords } from "../app/record-storage.mjs";
 
 const counts = (value) => Object.fromEntries(Array.from({ length: 12 }, (_, index) => [index + 1, value]));
+
+test("클릭 로그의 시간대와 증감 값을 복구한다", () => {
+  const logs = normalizeClickLogs([
+    { t: 1722844800123, s: "48", n: 3, m: "straight", d: 1, b: 7, a: 8 },
+    { t: 1722844801123, s: "49", n: 3, d: -1, b: 8, a: 7 },
+    { t: "잘못된 값", s: "99", n: 0, d: 4, b: 0, a: 0 },
+  ]);
+  assert.equal(logs.length, 2);
+  assert.equal(logs[0].s, "48");
+  assert.equal(logs[0].m, "straight");
+  assert.equal(logs[1].d, -1);
+  assert.equal(logs[1].a, 7);
+});
 
 test("19시부터 자정까지의 전날 기록과 00시 이후 기록을 합친다", () => {
   const previous = {};

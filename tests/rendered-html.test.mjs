@@ -156,3 +156,17 @@ test("커스텀 모드에서 교차로별 번호·방향·차선 수를 설정�
   assert.match(css, /\.custom-layout/);
   assert.match(css, /\.custom-config-modal/);
 });
+
+test("카운터 조작마다 클릭 로그를 저장하고 내보낸다", async () => {
+  const [page, storage, css] = await Promise.all([
+    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/record-storage.mjs", root), "utf8"),
+    readFile(new URL("app/globals.css", root), "utf8"),
+  ]);
+  assert.match(page, /clickLogs: \[\.\.\.\(recordSet\.clickLogs/);
+  assert.match(page, /클릭 시각/);
+  assert.match(page, /로그 CSV/);
+  assert.match(storage, /clickLogs: \[\]/);
+  assert.match(storage, /normalizeClickLogs/);
+  assert.match(css, /\.click-log-panel/);
+});

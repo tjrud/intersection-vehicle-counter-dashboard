@@ -188,6 +188,17 @@ tbody th { position:sticky; left:0; min-width:130px; color:#586578; background:#
 tbody tr.has-data td,tbody tr.has-data th { background:#fff8f4; }
 tbody tr.has-data th { color:var(--orange-dark); }
 .row-total { color:var(--navy); background:#f5f7fa; font-weight:900; }
+.click-log-panel { display:flex; flex:1; min-height:0; flex-direction:column; color:var(--ink); }
+.click-log-summary { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px 20px; background:var(--surface-soft); border-bottom:1px solid var(--line); }
+.click-log-summary div { display:flex; align-items:baseline; gap:10px; }
+.click-log-summary b { color:var(--orange-dark); font-size:20px; }
+.click-log-summary span,.click-log-summary small { color:var(--muted); font-size:11px; font-weight:700; }
+.click-log-wrap { flex:1; min-height:0; }
+.click-log-table th,.click-log-table td { min-width:88px; white-space:nowrap; }
+.click-log-table th:first-child,.click-log-table td:first-child { min-width:175px; }
+.click-log-table .log-plus { color:#13734e; background:#edf9f3; font-weight:900; }
+.click-log-table .log-minus { color:#a33d37; background:#fff2f0; font-weight:900; }
+.click-log-table .empty-click-log { height:160px; color:var(--muted); font-size:13px; font-weight:750; }
 
 .settings-modal { display:flex; flex-direction:column; width:min(760px,100%); max-height:92vh; overflow:hidden; color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:22px; box-shadow:0 24px 80px rgba(0,0,0,.32); }
 .settings-modal header { display:flex; align-items:center; justify-content:space-between; padding:24px 27px; border-bottom:1px solid var(--line); }
