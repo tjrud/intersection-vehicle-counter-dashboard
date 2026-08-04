@@ -47,6 +47,7 @@ test("12개 모드와 6개 모드의 여러 기록 슬롯을 분리해서 유지
   assert.equal(migrated.library.box[0].id, "box-1");
   assert.equal(migrated.library.gyuho[0].id, "gyuho-1");
   assert.equal(migrated.library.twoway[0].id, "twoway-1");
+  assert.equal(migrated.library.custom[0].id, "custom-1");
 });
 
 test("2way 모드는 유입·유출 기록을 다른 모드와 분리한다", () => {

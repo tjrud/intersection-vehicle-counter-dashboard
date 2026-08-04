@@ -124,8 +124,8 @@ const importedTwoWaySet = () => ({
 });
 
 export const createEmptyLibrary = () => ({
-  library: { full: [emptySet("full")], photo: [emptySet("photo")], box: [emptySet("box")], gyuho: [emptySet("gyuho")], twoway: [importedTwoWaySet()] },
-  activeRecordIds: { full: "full-1", photo: "photo-1", box: "box-1", gyuho: "gyuho-1", twoway: "twoway-1" },
+  library: { full: [emptySet("full")], photo: [emptySet("photo")], box: [emptySet("box")], gyuho: [emptySet("gyuho")], twoway: [importedTwoWaySet()], custom: [emptySet("custom")] },
+  activeRecordIds: { full: "full-1", photo: "photo-1", box: "box-1", gyuho: "gyuho-1", twoway: "twoway-1", custom: "custom-1" },
 });
 
 const normalizeSet = (value, mode, index) => {
@@ -137,6 +137,7 @@ const normalizeSet = (value, mode, index) => {
     records: migrateRecords(value.records),
     drafts: migrateDrafts(value.drafts),
     slot: normalizeSlot(value.slot),
+    ...(mode === "custom" && value.customConfig && typeof value.customConfig === "object" ? { customConfig: value.customConfig } : {}),
   };
 };
 
@@ -145,7 +146,7 @@ export const migrateToLibrary = (value) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return defaults;
 
   if (value.library && typeof value.library === "object") {
-    for (const mode of ["full", "photo", "box", "gyuho", "twoway"]) {
+    for (const mode of ["full", "photo", "box", "gyuho", "twoway", "custom"]) {
       const sourceSets = Array.isArray(value.library[mode]) ? value.library[mode] : [];
       const sets = sourceSets.map((set, index) => normalizeSet(set, mode, index));
       defaults.library[mode] = sets.length ? sets : [emptySet(mode)];
@@ -166,7 +167,7 @@ export const migrateToLibrary = (value) => {
     return defaults;
   }
 
-  const mode = value.mode === "photo" ? "photo" : value.mode === "box" ? "box" : value.mode === "gyuho" ? "gyuho" : value.mode === "twoway" ? "twoway" : "full";
+  const mode = value.mode === "photo" ? "photo" : value.mode === "box" ? "box" : value.mode === "gyuho" ? "gyuho" : value.mode === "twoway" ? "twoway" : value.mode === "custom" ? "custom" : "full";
   defaults.library[mode][0] = {
     ...defaults.library[mode][0],
     records: migrateRecords(value.records),
