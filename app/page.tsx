@@ -165,7 +165,7 @@ const setNumericCell = (document: XMLDocument, row: Element, column: string, row
 };
 
 export default function Home() {
-  const [mode, setMode] = useState<Mode>("full");
+  const mode: Mode = "custom";
   const [library, setLibrary] = useState<RecordLibrary>(() => createEmptyLibrary().library as RecordLibrary);
   const [activeRecordIds, setActiveRecordIds] = useState<ActiveRecordIds>(() => createEmptyLibrary().activeRecordIds as ActiveRecordIds);
   const [ready, setReady] = useState(false);
@@ -184,7 +184,6 @@ export default function Home() {
   const [soundOn, setSoundOn] = useState(false);
   const [soundName, setSoundName] = useState<SoundName>("click");
   const [counterSounds, setCounterSounds] = useState<CounterSounds>(emptyCounterSounds);
-  const [soundConfigMode, setSoundConfigMode] = useState<Mode>("full");
   const [volume, setVolume] = useState(60);
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [excelState, setExcelState] = useState<ExcelState>({ kind: "idle", message: "" });
@@ -210,7 +209,6 @@ export default function Home() {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- 브라우저에 저장된 현장 기록을 최초 한 번 복원합니다.
         setLibrary(migrated.library as RecordLibrary);
         setActiveRecordIds(migrated.activeRecordIds as ActiveRecordIds);
-        setMode(parsed.mode === "photo" ? "photo" : parsed.mode === "box" ? "box" : parsed.mode === "gyuho" ? "gyuho" : parsed.mode === "twoway" ? "twoway" : parsed.mode === "custom" ? "custom" : "full");
         const customSets = (migrated.library as RecordLibrary).custom;
         const selectedCustomId = (migrated.activeRecordIds as ActiveRecordIds).custom;
         const selectedCustomSet = customSets.find((recordSet) => recordSet.id === selectedCustomId) ?? customSets[0];
@@ -246,28 +244,23 @@ export default function Home() {
   }, []);
 
   const customPositions = useMemo(() => (approachKeys as Approach[]).flatMap((approach) => customConfig.approaches[approach].map((lane) => ({ ...lane, approach, area: `custom-${approach}` }))), [customConfig]);
-  const positions = mode === "full" ? fullMode : mode === "photo" ? photoMode : mode === "box" ? boxMode : mode === "gyuho" ? gyuhoMode : mode === "twoway" ? twoWayMode : customPositions;
-  const ids = mode === "photo" ? [2, 3, 4, 6, 7, 8] : mode === "twoway" ? [1, 2] : mode === "custom" ? customPositions.map(({ id }) => id) : Array.from({ length: 12 }, (_, i) => i + 1);
-  const isBoxMode = mode === "box";
-  const isGyuhoMode = mode === "gyuho";
-  const isTwoWayMode = mode === "twoway";
-  const isCustomMode = mode === "custom";
-  const usesCardControls = isBoxMode || isGyuhoMode || inputStyle === "card";
-  const movementForCounter = (id: number) => isCustomMode ? customPositions.find((lane) => lane.id === id)?.movement ?? "straight" : movementOf(id);
-  const soundConfigIds = soundConfigMode === "custom" ? customPositions.map(({ id }) => id) : counterIdsByMode[soundConfigMode];
+  const positions = customPositions;
+  const ids = customPositions.map(({ id }) => id);
+  const isBoxMode = false;
+  const isGyuhoMode = false;
+  const isTwoWayMode = false;
+  const isCustomMode = true;
+  const usesCardControls = inputStyle === "card";
+  const movementForCounter = (id: number) => customPositions.find((lane) => lane.id === id)?.movement ?? "straight";
+  const soundConfigIds = customPositions.map(({ id }) => id);
   const modeRecordSets = library[mode];
   const activeRecordId = activeRecordIds[mode];
   const activeRecordSet = modeRecordSets.find((recordSet) => recordSet.id === activeRecordId) ?? modeRecordSets[0];
   const { records, drafts, slot } = activeRecordSet;
   const safeRecordName = activeRecordSet.name.replace(/[\\/:*?"<>|]/g, "_");
   const counts = drafts[slot] ?? records[slot] ?? emptyCounts();
-  const total = useMemo(() => isGyuhoMode
-    ? positions.reduce((sum, { id }) => sum + vehicleKeys.reduce((vehicleSum, category) => vehicleSum + (counts[vehicleCountKey(id, category)] ?? 0), 0), 0)
-    : positions.reduce((sum, { id }) => sum + (counts[id] ?? 0), 0), [counts, isGyuhoMode, positions]);
-  const selectedVehicleTotal = useMemo(() => positions.reduce((sum, { id }) => sum + (counts[vehicleCountKey(id, selectedVehicle)] ?? 0), 0), [counts, positions, selectedVehicle]);
-  const tableColumns = isGyuhoMode
-    ? ids.flatMap((id) => vehicleCategories.map(({ key, group, label }) => ({ key: vehicleCountKey(id, key), label: `${id}번 ${key === "passenger" ? label : `${group} ${label}`}` })))
-    : ids.map((id) => ({ key: String(id), label: isTwoWayMode ? twoWayLabel(id) : isCustomMode ? `${id}번 ${movementName(movementForCounter(id))}` : `${id}번` }));
+  const total = useMemo(() => positions.reduce((sum, { id }) => sum + (counts[id] ?? 0), 0), [counts, positions]);
+  const tableColumns = ids.map((id) => ({ key: String(id), label: `${id}번 ${movementName(movementForCounter(id))}` }));
   const savedCurrent = Boolean(records[slot]);
 
   const updateActiveRecordSet = (update: (recordSet: RecordSet) => RecordSet) => {
@@ -303,22 +296,6 @@ export default function Home() {
     setConfirmDeleteRecord(false);
     setExcelFile(null);
     setExcelState({ kind: "idle", message: "" });
-  };
-  const selectMode = (nextMode: Mode) => {
-    setMode(nextMode);
-    if (nextMode === "custom") {
-      const customSets = library.custom;
-      const selected = customSets.find((recordSet) => recordSet.id === activeRecordIds.custom) ?? customSets[0];
-      const nextConfig = normalizeCustomConfig(selected.customConfig ?? customConfig) as CustomConfig;
-      setCustomConfig(nextConfig);
-      setCustomDraft(nextConfig);
-    }
-    setEditingRecordName(false);
-    setConfirmDeleteRecord(false);
-    setExcelFile(null);
-    setExcelState({ kind: "idle", message: "" });
-    setShowCorrection(false);
-    setCorrectionUndo(null);
   };
   const openCustomEditor = () => {
     setCustomDraft(normalizeCustomConfig(activeRecordSet.customConfig ?? customConfig) as CustomConfig);
@@ -763,25 +740,19 @@ export default function Home() {
         <div className="time-field wide"><label htmlFor="record-slot">기록 시간</label><select id="record-slot" value={slot} onChange={(e) => selectSlot(e.target.value)}>{slots.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></div>
         <span className={`save-status ${savedCurrent ? "saved" : "draft"}`}>{savedCurrent ? "저장된 구간" : "작성 중"}</span>
         <button type="button" className="sheet-open" onClick={() => setShowSheet(true)}>저장 기록 보기</button>
-        <button type="button" className="settings-open" onClick={() => { setSoundConfigMode(mode); setShowSettings(true); }}>설정</button>
+        <button type="button" className="settings-open" onClick={() => setShowSettings(true)}>설정</button>
       </section>
 
-      <nav className="mode-switch" aria-label="카운터 모드 선택">
-        <button type="button" className={mode === "full" ? "active" : ""} aria-pressed={mode === "full"} onClick={() => selectMode("full")}><b>모드 1 · 12개</b><span>기본 배치</span></button>
-        <button type="button" className={mode === "photo" ? "active" : ""} aria-pressed={mode === "photo"} onClick={() => selectMode("photo")}><b>모드 2 · 6개</b><span>2·3·4·6·7·8</span></button>
-        <button type="button" className={mode === "box" ? "active" : ""} aria-pressed={mode === "box"} onClick={() => selectMode("box")}><b>모드 3 · 12개</b><span>카드 클릭 방식</span></button>
-        <button type="button" className={mode === "gyuho" ? "active" : ""} aria-pressed={mode === "gyuho"} onClick={() => selectMode("gyuho")}><b>규호 모드</b><span>12방향 · 차량 분류</span></button>
-        <button type="button" className={mode === "twoway" ? "active" : ""} aria-pressed={mode === "twoway"} onClick={() => selectMode("twoway")}><b>2way 모드</b><span>유입 · 유출</span></button>
-        <button type="button" className={mode === "custom" ? "active" : ""} aria-pressed={mode === "custom"} onClick={() => selectMode("custom")}><b>커스텀 모드</b><span>번호·방향·차선 설정</span></button>
-      </nav>
+      <section className="custom-layout-toolbar"><div><b>{customConfig.name}</b><span>총 {customPositions.length}차선 · 저장 기록마다 다른 배치를 사용할 수 있습니다</span></div><button type="button" onClick={openCustomEditor}>교차로 구성</button></section>
 
-      {isBoxMode && <div className="movement-legend" aria-label="이동 유형 색상 안내"><span className="legend-left">좌회전</span><span className="legend-straight">직진</span><span className="legend-right">우회전</span><small>카드 좌클릭 +1 · 우클릭 −1</small></div>}
-      {isGyuhoMode && <section className="vehicle-selector" aria-label="차량 분류 선택"><header><div><b>차량 분류 선택</b><span>현재 <strong>{vehicleLabel(selectedVehicle)}</strong> {selectedVehicleTotal.toLocaleString()}대 집계</span></div><small>분류를 먼저 선택하고 방향 카드를 좌클릭 +1 · 우클릭 −1</small></header><div className="vehicle-options">{vehicleCategories.map(({ key, group, label }) => <button type="button" key={key} className={selectedVehicle === key ? "selected" : ""} aria-pressed={selectedVehicle === key} onClick={() => setSelectedVehicle(key)}><small>{group}</small><b>{label}</b></button>)}</div></section>}
-      {isCustomMode && <section className="custom-layout-toolbar"><div><b>{customConfig.name}</b><span>총 {customPositions.length}차선 · 저장 기록마다 다른 배치를 사용할 수 있습니다</span></div><button type="button" onClick={openCustomEditor}>교차로 구성</button></section>}
+      <section className="main-click-log" aria-label="최근 클릭 기록">
+        <header><div><b>최근 클릭 로그</b><span>{activeRecordSet.clickLogs.length.toLocaleString()}건</span></div><button type="button" onClick={() => { setSheetView("clicks"); setShowSheet(true); }}>전체 로그</button></header>
+        <div className="recent-click-list">{activeRecordSet.clickLogs.length ? [...activeRecordSet.clickLogs].slice(-8).reverse().map((log, index) => <div className={`recent-click ${log.d > 0 ? "plus" : "minus"}`} key={`${log.t}-${index}`}><time>{formatClickTime(log.t).slice(11, 19)}</time><b>{log.n}번 · {movementName(log.m ?? movementForCounter(log.n))}</b><strong>{log.d > 0 ? "+1" : "−1"}</strong><small>{log.b} → {log.a}</small></div>) : <p>카운터를 누르면 여기에 클릭 시각과 변경 내용이 표시됩니다.</p>}</div>
+      </section>
 
-      <section className={`counter-panel ${mode === "photo" ? "photo-layout" : isTwoWayMode ? "twoway-layout" : isCustomMode ? "custom-layout" : "full-layout"} ${isBoxMode ? "box-mode-layout" : ""} ${isGyuhoMode ? "gyuho-layout" : ""}`} aria-label={isTwoWayMode ? "유입 유출 차량 카운터" : isCustomMode ? "커스텀 교차로 차량 카운터" : "번호별 차량 카운터"}>
+      <section className="counter-panel custom-layout" aria-label="커스텀 교차로 차량 카운터">
         <div className="intersection" aria-hidden="true"><div className="road vertical-road" /><div className="road horizontal-road" /><div className="center-mark"><span>{slots[Number(slot)].label}</span><b>TOTAL</b><strong>{total}</strong></div></div>
-        {isCustomMode ? (approachKeys as Approach[]).map((approach) => <div className={`custom-approach custom-${approach}`} key={approach} aria-label={`${approachName(approach)} ${customConfig.approaches[approach].length}차선`}><span className="custom-approach-label">{approachName(approach)} · {customConfig.approaches[approach].length}차선</span><div className="custom-lanes">{customConfig.approaches[approach].map((lane, index) => renderCounter(lane.id, `${approach}-${index}`, lane.movement))}</div></div>) : positions.map(({ id, area }) => renderCounter(id, area))}
+        {(approachKeys as Approach[]).map((approach) => <div className={`custom-approach custom-${approach}`} key={approach} aria-label={`${approachName(approach)} ${customConfig.approaches[approach].length}차선`}><span className="custom-approach-label">{approachName(approach)} · {customConfig.approaches[approach].length}차선</span><div className="custom-lanes">{customConfig.approaches[approach].map((lane, index) => renderCounter(lane.id, `${approach}-${index}`, lane.movement))}</div></div>)}
       </section>
 
       <footer className="footer-bar">
@@ -818,7 +789,7 @@ export default function Home() {
           <section className="custom-config-modal" role="dialog" aria-modal="true" aria-label="커스텀 교차로 구성">
             <header><div><h2>커스텀 교차로 구성</h2><p>이 설정은 현재 선택한 저장 기록에만 적용됩니다</p></div><button type="button" className="settings-close" onClick={() => setShowCustomSettings(false)} aria-label="닫기">×</button></header>
             <div className="custom-config-body">
-              <section className="custom-presets"><b>기존 배치 불러오기</b><div><button type="button" onClick={() => loadCustomPreset("full")}>모드 1</button><button type="button" onClick={() => loadCustomPreset("photo")}>모드 2</button><button type="button" onClick={() => loadCustomPreset("box")}>모드 3</button><button type="button" onClick={() => loadCustomPreset("gyuho")}>규호</button><button type="button" onClick={() => loadCustomPreset("blank")}>빈 교차로</button></div></section>
+              <section className="custom-presets"><b>배치 예시 불러오기</b><div><button type="button" onClick={() => loadCustomPreset("full")}>12차선 기본</button><button type="button" onClick={() => loadCustomPreset("photo")}>6차선</button><button type="button" onClick={() => loadCustomPreset("box")}>12차선 반대</button><button type="button" onClick={() => loadCustomPreset("gyuho")}>12차선 교차</button><button type="button" onClick={() => loadCustomPreset("blank")}>빈 교차로</button></div></section>
               <label className="custom-name-field"><span>교차로 이름</span><input maxLength={40} value={customDraft.name} onChange={(event) => setCustomDraft((current) => ({ ...current, name: event.target.value }))} /></label>
               <div className="approach-settings">{(approachKeys as Approach[]).map((approach) => <section className="approach-editor" key={approach}><header><b>{approachName(approach)}</b><label><span>차선 수</span><select value={customDraft.approaches[approach].length} onChange={(event) => changeApproachCount(approach, Number(event.target.value))}>{Array.from({ length: 7 }, (_, count) => <option value={count} key={count}>{count}개</option>)}</select></label></header><div className="lane-editors">{customDraft.approaches[approach].map((lane, index) => <div className="lane-editor" key={`${approach}-${index}`}><span>{index + 1}차선</span><label><small>번호</small><input type="number" min="1" max="99" value={lane.id} onChange={(event) => updateCustomLane(approach, index, { id: Number(event.target.value) })} aria-label={`${approachName(approach)} ${index + 1}차선 번호`} /></label><label><small>방향</small><select value={lane.movement} onChange={(event) => updateCustomLane(approach, index, { movement: event.target.value as Movement })} aria-label={`${approachName(approach)} ${index + 1}차선 방향`}><option value="left">좌회전</option><option value="straight">직진</option><option value="right">우회전</option></select></label></div>)}</div></section>)}</div>
               <p className="custom-config-note">번호는 교차로 전체에서 중복 없이 사용하세요. 이미 저장된 값은 번호를 기준으로 유지되므로 기록 도중 번호를 바꿀 때 주의하세요.</p>
@@ -839,12 +810,12 @@ export default function Home() {
                 <button type="button" className={theme === "dark" ? "selected" : ""} onClick={() => setTheme("dark")}><i className="swatch dark" /><span><b>검정색</b><small>어두운 환경</small></span></button>
                 <button type="button" className={theme === "green" ? "selected" : ""} onClick={() => setTheme("green")}><i className="swatch green" /><span><b>은은한 그린</b><small>눈이 편안한 색감</small></span></button>
               </div></fieldset>
-              <fieldset><legend>모드 1·2·2way·커스텀 조작 방식</legend><div className="input-style-options"><button type="button" className={inputStyle === "card" ? "selected" : ""} onClick={() => setInputStyle("card")}><b>카드 클릭</b><small>좌클릭 +1 · 우클릭 −1</small></button><button type="button" className={inputStyle === "buttons" ? "selected" : ""} onClick={() => setInputStyle("buttons")}><b>− / + 버튼</b><small>모바일에서 편리한 방식</small></button></div><p className="input-style-note">모드 3과 규호 모드는 항상 카드 클릭 방식으로 작동합니다.</p></fieldset>
+              <fieldset><legend>카운터 조작 방식</legend><div className="input-style-options"><button type="button" className={inputStyle === "card" ? "selected" : ""} onClick={() => setInputStyle("card")}><b>카드 클릭</b><small>좌클릭 +1 · 우클릭 −1</small></button><button type="button" className={inputStyle === "buttons" ? "selected" : ""} onClick={() => setInputStyle("buttons")}><b>− / + 버튼</b><small>모바일에서 편리한 방식</small></button></div><p className="input-style-note">교차로의 모든 번호에 동일하게 적용됩니다.</p></fieldset>
               <fieldset><legend>버튼 소리</legend><label className="sound-toggle"><span><b>소리 사용</b><small>− / + 버튼을 누를 때 재생</small></span><input type="checkbox" checked={soundOn} onChange={(e) => setSoundOn(e.target.checked)} /><i /></label>
                 <div className="sound-options">{soundNames.map((name) => <button type="button" key={name} disabled={!soundOn} className={soundName === name ? "selected" : ""} onClick={() => setSoundName(name)}>{soundLabel(name)}</button>)}</div>
                 <label className={`volume-control ${!soundOn ? "disabled" : ""}`}><span><b>볼륨</b><output>{volume}%</output></span><input type="range" min="0" max="100" step="5" value={volume} disabled={!soundOn} onChange={(e) => setVolume(Number(e.target.value))} aria-label="버튼 소리 볼륨" /></label>
                 <button type="button" className="sound-preview" disabled={!soundOn} onClick={() => playSound(true)}>소리 미리 듣기</button>
-                <div className={`counter-sound-settings ${!soundOn ? "disabled" : ""}`}><div className="counter-sound-heading"><b>번호별 소리</b><small>기본 소리와 다르게 들릴 번호만 변경하세요</small></div><div className="sound-mode-switch">{(["full", "photo", "box", "gyuho", "twoway", "custom"] as Mode[]).map((soundMode) => <button type="button" key={soundMode} disabled={!soundOn} className={soundConfigMode === soundMode ? "selected" : ""} onClick={() => setSoundConfigMode(soundMode)}>{modeName(soundMode)}</button>)}</div><div className="counter-sound-grid">{soundConfigIds.map((id) => <label key={`${soundConfigMode}-${id}`}><b>{soundConfigMode === "twoway" ? twoWayLabel(id) : `${id}번`}</b><select disabled={!soundOn} value={counterSounds[soundConfigMode][id] ?? "default"} onChange={(event) => { const nextSound = event.target.value as CounterSound; setCounterSounds((current) => ({ ...current, [soundConfigMode]: { ...current[soundConfigMode], [id]: nextSound } })); playSound(true, 1, nextSound === "default" ? soundName : nextSound); }} aria-label={`${modeName(soundConfigMode)} ${soundConfigMode === "twoway" ? twoWayLabel(id) : `${id}번`} 소리`}><option value="default">기본 · {soundLabel(soundName)}</option>{soundNames.map((name) => <option key={name} value={name}>{soundLabel(name)}</option>)}</select></label>)}</div></div>
+                <div className={`counter-sound-settings ${!soundOn ? "disabled" : ""}`}><div className="counter-sound-heading"><b>번호별 소리</b><small>기본 소리와 다르게 들릴 번호만 변경하세요</small></div><div className="counter-sound-grid">{soundConfigIds.map((id) => <label key={`custom-${id}`}><b>{id}번</b><select disabled={!soundOn} value={counterSounds.custom[id] ?? "default"} onChange={(event) => { const nextSound = event.target.value as CounterSound; setCounterSounds((current) => ({ ...current, custom: { ...current.custom, [id]: nextSound } })); playSound(true, 1, nextSound === "default" ? soundName : nextSound); }} aria-label={`${id}번 소리`}><option value="default">기본 · {soundLabel(soundName)}</option>{soundNames.map((name) => <option key={name} value={name}>{soundLabel(name)}</option>)}</select></label>)}</div></div>
               </fieldset>
             </div>
             <footer><button type="button" onClick={() => setShowSettings(false)}>완료</button></footer>

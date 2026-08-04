@@ -90,15 +90,15 @@ test("모드별 번호마다 버튼 소리를 설정하고 저장한다", async 
   assert.match(css, /\.counter-sound-grid/);
 });
 
-test("모드 1과 2의 카드 클릭 및 버튼 조작 방식을 선택한다", async () => {
+test("커스텀 카운터의 카드 클릭 및 버튼 조작 방식을 선택한다", async () => {
   const [page, css] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("app/globals.css", root), "utf8"),
   ]);
   assert.match(page, /type InputStyle = "card" \| "buttons"/);
-  assert.match(page, /const usesCardControls = isBoxMode \|\| isGyuhoMode \|\| inputStyle === "card"/);
-  assert.match(page, /모드 1·2·2way·커스텀 조작 방식/);
-  assert.match(page, /모드 3과 규호 모드는 항상 카드 클릭 방식/);
+  assert.match(page, /const usesCardControls = inputStyle === "card"/);
+  assert.match(page, /카운터 조작 방식/);
+  assert.match(page, /교차로의 모든 번호에 동일하게 적용/);
   assert.match(page, /inputStyle, selectedVehicle, soundOn/);
   assert.match(css, /\.click-counter/);
   assert.match(css, /\.input-style-options/);
@@ -122,23 +122,6 @@ test("규호 모드에서 12방향과 6개 차량 분류를 집계한다", async
   assert.match(css, /\.vehicle-selector/);
 });
 
-test("2way 모드에서 유입과 유출을 별도로 집계한다", async () => {
-  const [page, storage, css] = await Promise.all([
-    readFile(new URL("app/page.tsx", root), "utf8"),
-    readFile(new URL("app/record-storage.mjs", root), "utf8"),
-    readFile(new URL("app/globals.css", root), "utf8"),
-  ]);
-  assert.match(page, /const twoWayMode/);
-  assert.match(page, /2way 모드/);
-  assert.match(page, /유입 · 유출/);
-  assert.match(page, /저장된 15분 기록을 시간별로 합산/);
-  assert.match(page, /동두천보건소 양식의 시간·유입·유출 배치/);
-  assert.match(storage, /"twoway"/);
-  assert.match(css, /\.twoway-layout/);
-  assert.match(css, /\.twoway-counter\.twoway-in/);
-  assert.match(css, /\.twoway-counter\.twoway-out/);
-});
-
 test("커스텀 모드에서 교차로별 번호·방향·차선 수를 설정한다", async () => {
   const [page, storage, css] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
@@ -152,6 +135,8 @@ test("커스텀 모드에서 교차로별 번호·방향·차선 수를 설정�
   assert.match(page, /직진/);
   assert.match(page, /우회전/);
   assert.match(page, /저장 기록마다 다른 배치/);
+  assert.match(page, /const mode: Mode = "custom"/);
+  assert.doesNotMatch(page, /<nav className="mode-switch"/);
   assert.match(storage, /"custom"/);
   assert.match(css, /\.custom-layout/);
   assert.match(css, /\.custom-config-modal/);
@@ -166,7 +151,10 @@ test("카운터 조작마다 클릭 로그를 저장하고 내보낸다", async 
   assert.match(page, /clickLogs: \[\.\.\.\(recordSet\.clickLogs/);
   assert.match(page, /클릭 시각/);
   assert.match(page, /로그 CSV/);
+  assert.match(page, /최근 클릭 로그/);
+  assert.match(page, /전체 로그/);
   assert.match(storage, /clickLogs: \[\]/);
   assert.match(storage, /normalizeClickLogs/);
   assert.match(css, /\.click-log-panel/);
+  assert.match(css, /\.main-click-log/);
 });
