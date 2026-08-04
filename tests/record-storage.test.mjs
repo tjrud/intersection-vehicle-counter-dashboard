@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { migrateDrafts, migrateRecords, migrateToLibrary, shiftRecords } from "../app/record-storage.mjs";
+import { importedTwoWayRecords, migrateDrafts, migrateRecords, migrateToLibrary, shiftRecords } from "../app/record-storage.mjs";
 
 const counts = (value) => Object.fromEntries(Array.from({ length: 12 }, (_, index) => [index + 1, value]));
 
@@ -59,6 +59,24 @@ test("2way 모드는 유입·유출 기록을 다른 모드와 분리한다", ()
   assert.equal(migrated.library.twoway[0].records["24"][1], 17);
   assert.equal(migrated.library.twoway[0].records["24"][2], 12);
   assert.deepEqual(migrated.library.full[0].records, {});
+});
+
+test("CSV의 값이 있는 18개 구간을 2way 기록 1에 한 번만 반영한다", () => {
+  const migrated = migrateToLibrary({
+    dataVersion: 3,
+    library: {
+      full: [], photo: [], box: [], gyuho: [],
+      twoway: [{ id: "twoway-1", name: "기록 1", records: { "25": { 1: 9, 2: 9 } }, drafts: {}, slot: "26" }],
+    },
+    activeRecordIds: { twoway: "twoway-1" },
+  });
+  const records = migrated.library.twoway[0].records;
+  assert.equal(Object.keys(importedTwoWayRecords).length, 18);
+  assert.equal(Object.values(importedTwoWayRecords).reduce((sum, row) => sum + row[1], 0), 21);
+  assert.equal(Object.values(importedTwoWayRecords).reduce((sum, row) => sum + row[2], 0), 46);
+  assert.deepEqual(records["25"], { 1: 9, 2: 9 });
+  assert.deepEqual(records["35"], { 1: 8, 2: 4 });
+  assert.equal(migrated.library.twoway[0].slot, "26");
 });
 
 test("규호 모드의 방향별 차량 분류 기록을 별도로 저장한다", () => {

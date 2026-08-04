@@ -200,7 +200,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (ready) localStorage.setItem("intersection-timed-records-v3", JSON.stringify({ library, activeRecordIds, mode, theme, inputStyle, selectedVehicle, soundOn, soundName, counterSounds, volume }));
+    if (ready) localStorage.setItem("intersection-timed-records-v3", JSON.stringify({ dataVersion: 4, library, activeRecordIds, mode, theme, inputStyle, selectedVehicle, soundOn, soundName, counterSounds, volume }));
   }, [library, activeRecordIds, mode, theme, inputStyle, selectedVehicle, soundOn, soundName, counterSounds, volume, ready]);
 
   useEffect(() => {

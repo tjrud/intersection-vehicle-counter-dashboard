@@ -105,8 +105,26 @@ const emptySet = (mode, index = 1) => ({
   slot: "00",
 });
 
+export const importedTwoWayRecords = {
+  "25": { 1: 1, 2: 3 }, "26": { 1: 0, 2: 1 }, "27": { 1: 2, 2: 1 }, "28": { 1: 1, 2: 3 },
+  "32": { 1: 1, 2: 1 }, "33": { 1: 3, 2: 2 }, "34": { 1: 4, 2: 5 }, "35": { 1: 8, 2: 4 },
+  "36": { 1: 0, 2: 6 }, "37": { 1: 0, 2: 7 }, "38": { 1: 0, 2: 2 }, "39": { 1: 0, 2: 3 },
+  "40": { 1: 1, 2: 0 }, "41": { 1: 0, 2: 3 }, "42": { 1: 0, 2: 1 }, "44": { 1: 0, 2: 1 },
+  "45": { 1: 0, 2: 1 }, "47": { 1: 0, 2: 2 },
+};
+
+const cloneImportedTwoWayRecords = () => Object.fromEntries(
+  Object.entries(importedTwoWayRecords).map(([slot, counts]) => [slot, { ...counts }]),
+);
+
+const importedTwoWaySet = () => ({
+  ...emptySet("twoway"),
+  records: cloneImportedTwoWayRecords(),
+  slot: "48",
+});
+
 export const createEmptyLibrary = () => ({
-  library: { full: [emptySet("full")], photo: [emptySet("photo")], box: [emptySet("box")], gyuho: [emptySet("gyuho")], twoway: [emptySet("twoway")] },
+  library: { full: [emptySet("full")], photo: [emptySet("photo")], box: [emptySet("box")], gyuho: [emptySet("gyuho")], twoway: [importedTwoWaySet()] },
   activeRecordIds: { full: "full-1", photo: "photo-1", box: "box-1", gyuho: "gyuho-1", twoway: "twoway-1" },
 });
 
@@ -135,6 +153,15 @@ export const migrateToLibrary = (value) => {
       defaults.activeRecordIds[mode] = defaults.library[mode].some((set) => set.id === requestedId)
         ? requestedId
         : defaults.library[mode][0].id;
+    }
+    if (value.dataVersion !== 4) {
+      const [first, ...rest] = defaults.library.twoway;
+      const hasExistingRecords = Object.keys(first.records).length > 0;
+      defaults.library.twoway = [{
+        ...first,
+        records: { ...cloneImportedTwoWayRecords(), ...first.records },
+        slot: hasExistingRecords ? first.slot : "48",
+      }, ...rest];
     }
     return defaults;
   }
