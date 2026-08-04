@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";
+import { summarizeTwoWayHours } from "./excel-mapping.mjs";
 import { createEmptyLibrary, migrateToLibrary, shiftRecords } from "./record-storage.mjs";
 
 const fullMode = [
@@ -119,6 +120,17 @@ const numericCellValue = (cell: Element | null) => {
   if (!cell) return null;
   const value = Number(cell.querySelector("v")?.textContent);
   return Number.isFinite(value) ? value : null;
+};
+
+const textCellValue = (cell: Element | null, sharedStrings: string[]) => {
+  if (!cell) return "";
+  const type = cell.getAttribute("t");
+  if (type === "s") {
+    const index = Number(cell.querySelector("v")?.textContent);
+    return Number.isInteger(index) ? sharedStrings[index] ?? "" : "";
+  }
+  if (type === "inlineStr") return cell.querySelector("is")?.textContent ?? "";
+  return cell.querySelector("v")?.textContent ?? "";
 };
 
 const setNumericCell = (document: XMLDocument, row: Element, column: string, rowNumber: number, value: number) => {
@@ -466,6 +478,10 @@ export default function Home() {
 
       const workbookDocument = parseXml(workbookText);
       const relationsDocument = parseXml(relationsText);
+      const sharedStringsText = await zip.file("xl/sharedStrings.xml")?.async("text");
+      const sharedStrings = sharedStringsText
+        ? Array.from(parseXml(sharedStringsText).querySelectorAll("si")).map((item) => item.textContent ?? "")
+        : [];
       const relations = new Map(
         Array.from(relationsDocument.querySelectorAll("Relationship")).map((relation) => [
           relation.getAttribute("Id") ?? "",
@@ -479,6 +495,7 @@ export default function Home() {
       });
 
       let filledCells = 0;
+      let filledHours = 0;
       let matchedTemplate = false;
       for (const worksheetPath of worksheetPaths) {
         const worksheetFile = zip.file(worksheetPath);
@@ -487,6 +504,30 @@ export default function Home() {
         const rows = new Map<number, Element>();
         worksheetDocument.querySelectorAll("row").forEach((row) => rows.set(Number(row.getAttribute("r")), row));
 
+        if (isTwoWayMode) {
+          const header = Array.from(rows.values()).find((row) => {
+            const rowNumber = row.getAttribute("r");
+            return textCellValue(row.querySelector(`c[r="B${rowNumber}"]`), sharedStrings).trim() === "구분"
+              && textCellValue(row.querySelector(`c[r="C${rowNumber}"]`), sharedStrings).trim() === "유입"
+              && textCellValue(row.querySelector(`c[r="D${rowNumber}"]`), sharedStrings).trim() === "유출";
+          });
+          const timeRows = Array.from(rows.entries()).map(([rowNumber, row]) => {
+            const label = textCellValue(row.querySelector(`c[r="B${rowNumber}"]`), sharedStrings).replace(/\s/g, "");
+            const match = label.match(/^(\d{1,2})~(\d{1,2})$/);
+            return match ? { rowNumber, row, hour: Number(match[1]) } : null;
+          }).filter((item): item is { rowNumber: number; row: Element; hour: number } => Boolean(item));
+          if (!header || timeRows.length < 24) continue;
+          matchedTemplate = true;
+          const hourlyRecords = summarizeTwoWayHours(records) as Record<number, { incoming: number; outgoing: number; savedSlots: number }>;
+          timeRows.forEach(({ rowNumber, row, hour }) => {
+            const summary = hourlyRecords[hour];
+            if (!summary) return;
+            setNumericCell(worksheetDocument, row, "C", rowNumber, summary.incoming);
+            setNumericCell(worksheetDocument, row, "D", rowNumber, summary.outgoing);
+            filledCells += 2;
+            filledHours += 1;
+          });
+        } else {
         const headers = Array.from(rows.entries()).filter(([, row]) => {
           const values = ["E", "M", "U"].map((column) => numericCellValue(row.querySelector(`c[r="${column}${row.getAttribute("r")}"]`)));
           return values.every((value) => value !== null && value >= 1 && value <= 12) && values[1] === values[0]! + 1 && values[2] === values[1]! + 1;
@@ -511,6 +552,7 @@ export default function Home() {
             });
           });
         });
+        }
 
         worksheetDocument.querySelectorAll("c").forEach((cell) => {
           const hasFormula = Array.from(cell.children).some((child) => child.tagName.endsWith("f"));
@@ -523,7 +565,7 @@ export default function Home() {
         zip.file(worksheetPath, new XMLSerializer().serializeToString(worksheetDocument));
       }
 
-      if (!matchedTemplate || filledCells === 0) throw new Error("동연사거리 양식의 번호·시간 배치를 찾지 못했습니다.");
+      if (!matchedTemplate || filledCells === 0) throw new Error(isTwoWayMode ? "동두천보건소 양식의 시간·유입·유출 배치를 찾지 못했습니다." : "동연사거리 양식의 번호·시간 배치를 찾지 못했습니다.");
       const calcProperties = workbookDocument.querySelector("calcPr");
       if (calcProperties) {
         calcProperties.setAttribute("calcId", "0");
@@ -557,7 +599,7 @@ export default function Home() {
       link.download = `${excelFile.name.replace(/\.xlsx$/i, "")}_${modeFileName(mode)}_${safeRecordName}_자동입력.xlsx`;
       link.click();
       URL.revokeObjectURL(url);
-      setExcelState({ kind: "success", message: `${savedSlots.length}개 시간대를 입력했습니다. 파일을 열면 합계 수식이 자동 계산됩니다.` });
+      setExcelState({ kind: "success", message: `${isTwoWayMode ? `${filledHours}개 시간` : `${savedSlots.length}개 시간대`}을 입력했습니다. 파일을 열면 합계 수식이 자동 계산됩니다.` });
     } catch (error) {
       setExcelState({ kind: "error", message: error instanceof Error ? error.message : "엑셀 파일 처리에 실패했습니다." });
     }
@@ -609,12 +651,12 @@ export default function Home() {
           <section className="sheet-modal" role="dialog" aria-modal="true" aria-label="저장 기록 표">
             <header><div><h2>{activeRecordSet.name} 저장 기록</h2><p>{modeName(mode)} · {Object.keys(records).length}/96 구간 저장 · 자정 이후에도 계속 이어집니다</p></div><div className="sheet-actions"><button type="button" className="time-correction-open" onClick={openCorrection}>시간 보정</button><button type="button" onClick={copyTable}>{copyState}</button><button type="button" onClick={downloadCsv}>CSV 다운로드</button><button type="button" className="close-modal" onClick={() => setShowSheet(false)} aria-label="닫기">×</button></div></header>
             {showCorrection && <section className="time-correction" aria-label="저장 기록 시간 보정"><div className="time-correction-heading"><div><b>밀려 쓴 기록 옮기기</b><p>선택 범위에서 저장된 기록만 이동합니다. 작성 중인 값은 바뀌지 않습니다.</p></div>{correctionUndo && <button type="button" className="correction-undo" onClick={undoTimeCorrection}>방금 보정 되돌리기</button>}</div><div className="time-correction-controls"><label><span>시작 구간</span><select value={correctionStart} onChange={(event) => { setCorrectionStart(event.target.value); setCorrectionState({ kind: "idle", message: "" }); }}>{slots.map((item) => <option key={`correction-start-${item.key}`} value={item.key}>{item.label}</option>)}</select></label><label><span>끝 구간</span><select value={correctionEnd} onChange={(event) => { setCorrectionEnd(event.target.value); setCorrectionState({ kind: "idle", message: "" }); }}>{slots.map((item) => <option key={`correction-end-${item.key}`} value={item.key}>{item.label}</option>)}</select></label><label><span>이동 방향</span><select value={correctionOffset} onChange={(event) => { setCorrectionOffset(Number(event.target.value) as -1 | 1); setCorrectionState({ kind: "idle", message: "" }); }}><option value={-1}>15분 앞으로 · 18:15 → 18:00</option><option value={1}>15분 뒤로 · 18:00 → 18:15</option></select></label><button type="button" className="correction-apply" onClick={applyTimeCorrection}>보정 적용</button></div>{correctionState.message && <p className={`correction-message ${correctionState.kind}`} role="status">{correctionState.message}</p>}<small>이동할 시간대에 다른 기록이 있으면 덮어쓰지 않고 중단합니다. 저장된 0값 구간은 교체할 수 있습니다.</small></section>}
-            {!isGyuhoMode && !isTwoWayMode ? <div className="excel-import">
-              <div><b>엑셀 자동 입력</b><p>저장된 번호별 차량 수를 같은 15분 시간대의 소계 칸에 넣습니다. 원본 서식과 다른 값은 그대로 유지됩니다.</p></div>
+            {!isGyuhoMode ? <div className="excel-import">
+              <div><b>엑셀 자동 입력</b><p>{isTwoWayMode ? "저장된 15분 기록을 시간별로 합산해 동두천보건소 양식의 유입·유출 칸에 넣습니다. 기록이 없는 시간과 원본 서식은 그대로 유지됩니다." : "저장된 번호별 차량 수를 같은 15분 시간대의 소계 칸에 넣습니다. 원본 서식과 다른 값은 그대로 유지됩니다."}</p></div>
               <label className="excel-file"><input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => { setExcelFile(event.target.files?.[0] ?? null); setExcelState({ kind: "idle", message: "" }); }} /><span>{excelFile ? excelFile.name : "엑셀 파일 선택"}</span></label>
               <button type="button" className="excel-fill" disabled={excelState.kind === "working"} onClick={fillExcelTemplate}>{excelState.kind === "working" ? "입력 중…" : "기록 입력 후 다운로드"}</button>
               {excelState.message && <p className={`excel-message ${excelState.kind}`} role="status">{excelState.message}</p>}
-            </div> : <div className="gyuho-export-note"><b>{isTwoWayMode ? "2way 기록 내보내기" : "차량 분류 기록 내보내기"}</b><p>{isTwoWayMode ? "유입·유출 기록은 표 복사 또는 CSV 다운로드로 내보냅니다." : "규호 모드는 방향별 6개 차량 분류를 표 복사 또는 CSV 다운로드로 내보냅니다."}</p></div>}
+            </div> : <div className="gyuho-export-note"><b>차량 분류 기록 내보내기</b><p>규호 모드는 방향별 6개 차량 분류를 표 복사 또는 CSV 다운로드로 내보냅니다.</p></div>}
             <div className="table-wrap"><table><thead><tr><th>시간</th>{tableColumns.map(({ key, label }) => <th key={key}>{label}</th>)}<th>합계</th></tr></thead><tbody>{slots.map(({ key: rowSlot, label }) => { const row = records[rowSlot]; const values = tableColumns.map(({ key }) => row?.[key] ?? 0); const sum = values.reduce((a, b) => a + b, 0); return <tr className={row ? "has-data" : ""} key={rowSlot}><th>{label}</th>{values.map((value, index) => <td key={tableColumns[index].key}>{value}</td>)}<td className="row-total">{sum}</td></tr>; })}</tbody></table></div>
           </section>
         </div>

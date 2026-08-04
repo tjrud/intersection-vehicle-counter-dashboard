@@ -131,7 +131,8 @@ test("2way 모드에서 유입과 유출을 별도로 집계한다", async () =>
   assert.match(page, /const twoWayMode/);
   assert.match(page, /2way 모드/);
   assert.match(page, /유입 · 유출/);
-  assert.match(page, /2way 기록 내보내기/);
+  assert.match(page, /저장된 15분 기록을 시간별로 합산/);
+  assert.match(page, /동두천보건소 양식의 시간·유입·유출 배치/);
   assert.match(storage, /"twoway"/);
   assert.match(css, /\.twoway-layout/);
   assert.match(css, /\.twoway-counter\.twoway-in/);
