@@ -106,8 +106,8 @@ const emptySet = (mode, index = 1) => ({
 });
 
 export const createEmptyLibrary = () => ({
-  library: { full: [emptySet("full")], photo: [emptySet("photo")], box: [emptySet("box")], gyuho: [emptySet("gyuho")] },
-  activeRecordIds: { full: "full-1", photo: "photo-1", box: "box-1", gyuho: "gyuho-1" },
+  library: { full: [emptySet("full")], photo: [emptySet("photo")], box: [emptySet("box")], gyuho: [emptySet("gyuho")], twoway: [emptySet("twoway")] },
+  activeRecordIds: { full: "full-1", photo: "photo-1", box: "box-1", gyuho: "gyuho-1", twoway: "twoway-1" },
 });
 
 const normalizeSet = (value, mode, index) => {
@@ -127,7 +127,7 @@ export const migrateToLibrary = (value) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return defaults;
 
   if (value.library && typeof value.library === "object") {
-    for (const mode of ["full", "photo", "box", "gyuho"]) {
+    for (const mode of ["full", "photo", "box", "gyuho", "twoway"]) {
       const sourceSets = Array.isArray(value.library[mode]) ? value.library[mode] : [];
       const sets = sourceSets.map((set, index) => normalizeSet(set, mode, index));
       defaults.library[mode] = sets.length ? sets : [emptySet(mode)];
@@ -139,7 +139,7 @@ export const migrateToLibrary = (value) => {
     return defaults;
   }
 
-  const mode = value.mode === "photo" ? "photo" : value.mode === "box" ? "box" : value.mode === "gyuho" ? "gyuho" : "full";
+  const mode = value.mode === "photo" ? "photo" : value.mode === "box" ? "box" : value.mode === "gyuho" ? "gyuho" : value.mode === "twoway" ? "twoway" : "full";
   defaults.library[mode][0] = {
     ...defaults.library[mode][0],
     records: migrateRecords(value.records),

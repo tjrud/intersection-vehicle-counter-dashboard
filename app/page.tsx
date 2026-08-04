@@ -26,8 +26,12 @@ const gyuhoMode = [
   { id: 3, area: "e1" }, { id: 2, area: "e2" }, { id: 1, area: "e3" },
   { id: 10, area: "s1" }, { id: 11, area: "s2" }, { id: 12, area: "s3" },
 ] as const;
+const twoWayMode = [
+  { id: 1, area: "tw-in" },
+  { id: 2, area: "tw-out" },
+] as const;
 
-type Mode = "full" | "photo" | "box" | "gyuho";
+type Mode = "full" | "photo" | "box" | "gyuho" | "twoway";
 type Movement = "left" | "straight" | "right";
 type VehicleCategory = "passenger" | "busSmall" | "busLarge" | "truckSmall" | "truckLarge" | "trailer";
 type Theme = "light" | "dark" | "green";
@@ -76,17 +80,19 @@ const counterIdsByMode: Record<Mode, number[]> = {
   photo: [2, 3, 4, 6, 7, 8],
   box: Array.from({ length: 12 }, (_, index) => index + 1),
   gyuho: Array.from({ length: 12 }, (_, index) => index + 1),
+  twoway: [1, 2],
 };
 const emptyCounterSounds = (): CounterSounds => ({
   full: Object.fromEntries(counterIdsByMode.full.map((id) => [id, "default"])) as Record<number, CounterSound>,
   photo: Object.fromEntries(counterIdsByMode.photo.map((id) => [id, "default"])) as Record<number, CounterSound>,
   box: Object.fromEntries(counterIdsByMode.box.map((id) => [id, "default"])) as Record<number, CounterSound>,
   gyuho: Object.fromEntries(counterIdsByMode.gyuho.map((id) => [id, "default"])) as Record<number, CounterSound>,
+  twoway: Object.fromEntries(counterIdsByMode.twoway.map((id) => [id, "default"])) as Record<number, CounterSound>,
 });
 const normalizeCounterSounds = (value: unknown): CounterSounds => {
   const normalized = emptyCounterSounds();
   if (!value || typeof value !== "object") return normalized;
-  for (const modeName of ["full", "photo", "box", "gyuho"] as Mode[]) {
+  for (const modeName of ["full", "photo", "box", "gyuho", "twoway"] as Mode[]) {
     const source = (value as Partial<Record<Mode, Record<number, unknown>>>)[modeName];
     if (!source || typeof source !== "object") continue;
     counterIdsByMode[modeName].forEach((id) => {
@@ -99,8 +105,9 @@ const normalizeCounterSounds = (value: unknown): CounterSounds => {
 const soundLabel = (name: SoundName) => name === "click" ? "클릭" : name === "clack" ? "딸칵" : "부드러운 톤";
 const movementOf = (id: number): Movement => id % 3 === 1 ? "left" : id % 3 === 2 ? "straight" : "right";
 const movementName = (movement: Movement) => movement === "left" ? "좌회전" : movement === "straight" ? "직진" : "우회전";
-const modeName = (mode: Mode) => mode === "full" ? "모드 1 · 12개" : mode === "photo" ? "모드 2 · 6개" : mode === "box" ? "모드 3 · 12개" : "규호 모드 · 차량 분류";
-const modeFileName = (mode: Mode) => mode === "full" ? "모드1_12개" : mode === "photo" ? "모드2_6개" : mode === "box" ? "모드3_12개" : "규호모드_차량분류";
+const modeName = (mode: Mode) => mode === "full" ? "모드 1 · 12개" : mode === "photo" ? "모드 2 · 6개" : mode === "box" ? "모드 3 · 12개" : mode === "gyuho" ? "규호 모드 · 차량 분류" : "2way 모드 · 유입/유출";
+const modeFileName = (mode: Mode) => mode === "full" ? "모드1_12개" : mode === "photo" ? "모드2_6개" : mode === "box" ? "모드3_12개" : mode === "gyuho" ? "규호모드_차량분류" : "2way모드_유입유출";
+const twoWayLabel = (id: number) => id === 1 ? "유입" : "유출";
 
 const parseXml = (text: string) => {
   const document = new DOMParser().parseFromString(text, "application/xml");
@@ -177,7 +184,7 @@ export default function Home() {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- 브라우저에 저장된 현장 기록을 최초 한 번 복원합니다.
         setLibrary(migrated.library as RecordLibrary);
         setActiveRecordIds(migrated.activeRecordIds as ActiveRecordIds);
-        setMode(parsed.mode === "photo" ? "photo" : parsed.mode === "box" ? "box" : parsed.mode === "gyuho" ? "gyuho" : "full");
+        setMode(parsed.mode === "photo" ? "photo" : parsed.mode === "box" ? "box" : parsed.mode === "gyuho" ? "gyuho" : parsed.mode === "twoway" ? "twoway" : "full");
         setTheme(["light", "dark", "green"].includes(parsed.theme) ? parsed.theme : "light");
         setInputStyle(parsed.inputStyle === "buttons" ? "buttons" : "card");
         setSelectedVehicle(vehicleKeys.includes(parsed.selectedVehicle) ? parsed.selectedVehicle : "passenger");
@@ -206,10 +213,11 @@ export default function Home() {
     compressorRef.current = null;
   }, []);
 
-  const positions = mode === "full" ? fullMode : mode === "photo" ? photoMode : mode === "box" ? boxMode : gyuhoMode;
-  const ids = mode === "photo" ? [2, 3, 4, 6, 7, 8] : Array.from({ length: 12 }, (_, i) => i + 1);
+  const positions = mode === "full" ? fullMode : mode === "photo" ? photoMode : mode === "box" ? boxMode : mode === "gyuho" ? gyuhoMode : twoWayMode;
+  const ids = mode === "photo" ? [2, 3, 4, 6, 7, 8] : mode === "twoway" ? [1, 2] : Array.from({ length: 12 }, (_, i) => i + 1);
   const isBoxMode = mode === "box";
   const isGyuhoMode = mode === "gyuho";
+  const isTwoWayMode = mode === "twoway";
   const usesCardControls = isBoxMode || isGyuhoMode || inputStyle === "card";
   const modeRecordSets = library[mode];
   const activeRecordId = activeRecordIds[mode];
@@ -223,7 +231,7 @@ export default function Home() {
   const selectedVehicleTotal = useMemo(() => positions.reduce((sum, { id }) => sum + (counts[vehicleCountKey(id, selectedVehicle)] ?? 0), 0), [counts, positions, selectedVehicle]);
   const tableColumns = isGyuhoMode
     ? ids.flatMap((id) => vehicleCategories.map(({ key, group, label }) => ({ key: vehicleCountKey(id, key), label: `${id}번 ${key === "passenger" ? label : `${group} ${label}`}` })))
-    : ids.map((id) => ({ key: String(id), label: `${id}번` }));
+    : ids.map((id) => ({ key: String(id), label: isTwoWayMode ? twoWayLabel(id) : `${id}번` }));
   const savedCurrent = Boolean(records[slot]);
 
   const updateActiveRecordSet = (update: (recordSet: RecordSet) => RecordSet) => {
@@ -575,15 +583,16 @@ export default function Home() {
         <button type="button" className={mode === "photo" ? "active" : ""} aria-pressed={mode === "photo"} onClick={() => selectMode("photo")}><b>모드 2 · 6개</b><span>2·3·4·6·7·8</span></button>
         <button type="button" className={mode === "box" ? "active" : ""} aria-pressed={mode === "box"} onClick={() => selectMode("box")}><b>모드 3 · 12개</b><span>카드 클릭 방식</span></button>
         <button type="button" className={mode === "gyuho" ? "active" : ""} aria-pressed={mode === "gyuho"} onClick={() => selectMode("gyuho")}><b>규호 모드</b><span>12방향 · 차량 분류</span></button>
+        <button type="button" className={mode === "twoway" ? "active" : ""} aria-pressed={mode === "twoway"} onClick={() => selectMode("twoway")}><b>2way 모드</b><span>유입 · 유출</span></button>
       </nav>
 
       {isBoxMode && <div className="movement-legend" aria-label="이동 유형 색상 안내"><span className="legend-left">좌회전</span><span className="legend-straight">직진</span><span className="legend-right">우회전</span><small>카드 좌클릭 +1 · 우클릭 −1</small></div>}
       {isGyuhoMode && <section className="vehicle-selector" aria-label="차량 분류 선택"><header><div><b>차량 분류 선택</b><span>현재 <strong>{vehicleLabel(selectedVehicle)}</strong> {selectedVehicleTotal.toLocaleString()}대 집계</span></div><small>분류를 먼저 선택하고 방향 카드를 좌클릭 +1 · 우클릭 −1</small></header><div className="vehicle-options">{vehicleCategories.map(({ key, group, label }) => <button type="button" key={key} className={selectedVehicle === key ? "selected" : ""} aria-pressed={selectedVehicle === key} onClick={() => setSelectedVehicle(key)}><small>{group}</small><b>{label}</b></button>)}</div></section>}
 
-      <section className={`counter-panel ${mode === "photo" ? "photo-layout" : "full-layout"} ${isBoxMode ? "box-mode-layout" : ""} ${isGyuhoMode ? "gyuho-layout" : ""}`} aria-label="번호별 차량 카운터">
+      <section className={`counter-panel ${mode === "photo" ? "photo-layout" : isTwoWayMode ? "twoway-layout" : "full-layout"} ${isBoxMode ? "box-mode-layout" : ""} ${isGyuhoMode ? "gyuho-layout" : ""}`} aria-label={isTwoWayMode ? "유입 유출 차량 카운터" : "번호별 차량 카운터"}>
         <div className="intersection" aria-hidden="true"><div className="road vertical-road" /><div className="road horizontal-road" /><div className="center-mark"><span>{slots[Number(slot)].label}</span><b>TOTAL</b><strong>{total}</strong></div></div>
         {positions.map(({ id, area }) => { const movement = movementOf(id); const countValue = isGyuhoMode ? counts[vehicleCountKey(id, selectedVehicle)] ?? 0 : counts[id] ?? 0; return (
-          <article className={`counter counter-${area} ${usesCardControls ? "click-counter" : ""} ${isBoxMode ? `box-counter movement-${movement}` : ""} ${isGyuhoMode ? "gyuho-counter" : ""}`} key={`${mode}-${id}`} role={usesCardControls ? "button" : undefined} tabIndex={usesCardControls ? 0 : undefined} aria-label={usesCardControls ? `${id}번${isBoxMode ? ` ${movementName(movement)}` : isGyuhoMode ? ` ${vehicleLabel(selectedVehicle)}` : ""}, 좌클릭 추가, 우클릭 빼기, 현재 ${countValue}대` : undefined} onClick={usesCardControls ? () => changeCount(id, 1) : undefined} onContextMenu={usesCardControls ? (event) => { event.preventDefault(); changeCount(id, -1); } : undefined} onKeyDown={usesCardControls ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); changeCount(id, 1); } } : undefined}><span className="number-badge">{id}</span><output aria-label={`${id}번 현재 ${countValue}대`}>{countValue.toLocaleString()}</output>{usesCardControls ? <span className="counter-action-hint">{isBoxMode ? movementName(movement) : isGyuhoMode ? `${vehicleLabel(selectedVehicle)} · 좌 +1 · 우 −1` : "좌 +1 · 우 −1"}</span> : <div className="controls"><button type="button" className="minus" onClick={() => changeCount(id, -1)} disabled={countValue === 0} aria-label={`${id}번 1대 빼기`}>−</button><button type="button" className="plus" onClick={() => changeCount(id, 1)} aria-label={`${id}번 1대 추가`}>+</button></div>}</article>
+          <article className={`counter counter-${area} ${usesCardControls ? "click-counter" : ""} ${isBoxMode ? `box-counter movement-${movement}` : ""} ${isGyuhoMode ? "gyuho-counter" : ""} ${isTwoWayMode ? `twoway-counter twoway-${id === 1 ? "in" : "out"}` : ""}`} key={`${mode}-${id}`} role={usesCardControls ? "button" : undefined} tabIndex={usesCardControls ? 0 : undefined} aria-label={usesCardControls ? `${isTwoWayMode ? twoWayLabel(id) : `${id}번`}${isBoxMode ? ` ${movementName(movement)}` : isGyuhoMode ? ` ${vehicleLabel(selectedVehicle)}` : ""}, 좌클릭 추가, 우클릭 빼기, 현재 ${countValue}대` : undefined} onClick={usesCardControls ? () => changeCount(id, 1) : undefined} onContextMenu={usesCardControls ? (event) => { event.preventDefault(); changeCount(id, -1); } : undefined} onKeyDown={usesCardControls ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); changeCount(id, 1); } } : undefined}><span className="number-badge">{isTwoWayMode ? twoWayLabel(id) : id}</span><output aria-label={`${isTwoWayMode ? twoWayLabel(id) : `${id}번`} 현재 ${countValue}대`}>{countValue.toLocaleString()}</output>{usesCardControls ? <span className="counter-action-hint">{isTwoWayMode ? "좌클릭 +1 · 우클릭 −1" : isBoxMode ? movementName(movement) : isGyuhoMode ? `${vehicleLabel(selectedVehicle)} · 좌 +1 · 우 −1` : "좌 +1 · 우 −1"}</span> : <div className="controls"><button type="button" className="minus" onClick={() => changeCount(id, -1)} disabled={countValue === 0} aria-label={`${isTwoWayMode ? twoWayLabel(id) : `${id}번`} 1대 빼기`}>−</button><button type="button" className="plus" onClick={() => changeCount(id, 1)} aria-label={`${isTwoWayMode ? twoWayLabel(id) : `${id}번`} 1대 추가`}>+</button></div>}</article>
         ); })}
       </section>
 
@@ -600,12 +609,12 @@ export default function Home() {
           <section className="sheet-modal" role="dialog" aria-modal="true" aria-label="저장 기록 표">
             <header><div><h2>{activeRecordSet.name} 저장 기록</h2><p>{modeName(mode)} · {Object.keys(records).length}/96 구간 저장 · 자정 이후에도 계속 이어집니다</p></div><div className="sheet-actions"><button type="button" className="time-correction-open" onClick={openCorrection}>시간 보정</button><button type="button" onClick={copyTable}>{copyState}</button><button type="button" onClick={downloadCsv}>CSV 다운로드</button><button type="button" className="close-modal" onClick={() => setShowSheet(false)} aria-label="닫기">×</button></div></header>
             {showCorrection && <section className="time-correction" aria-label="저장 기록 시간 보정"><div className="time-correction-heading"><div><b>밀려 쓴 기록 옮기기</b><p>선택 범위에서 저장된 기록만 이동합니다. 작성 중인 값은 바뀌지 않습니다.</p></div>{correctionUndo && <button type="button" className="correction-undo" onClick={undoTimeCorrection}>방금 보정 되돌리기</button>}</div><div className="time-correction-controls"><label><span>시작 구간</span><select value={correctionStart} onChange={(event) => { setCorrectionStart(event.target.value); setCorrectionState({ kind: "idle", message: "" }); }}>{slots.map((item) => <option key={`correction-start-${item.key}`} value={item.key}>{item.label}</option>)}</select></label><label><span>끝 구간</span><select value={correctionEnd} onChange={(event) => { setCorrectionEnd(event.target.value); setCorrectionState({ kind: "idle", message: "" }); }}>{slots.map((item) => <option key={`correction-end-${item.key}`} value={item.key}>{item.label}</option>)}</select></label><label><span>이동 방향</span><select value={correctionOffset} onChange={(event) => { setCorrectionOffset(Number(event.target.value) as -1 | 1); setCorrectionState({ kind: "idle", message: "" }); }}><option value={-1}>15분 앞으로 · 18:15 → 18:00</option><option value={1}>15분 뒤로 · 18:00 → 18:15</option></select></label><button type="button" className="correction-apply" onClick={applyTimeCorrection}>보정 적용</button></div>{correctionState.message && <p className={`correction-message ${correctionState.kind}`} role="status">{correctionState.message}</p>}<small>이동할 시간대에 다른 기록이 있으면 덮어쓰지 않고 중단합니다. 저장된 0값 구간은 교체할 수 있습니다.</small></section>}
-            {!isGyuhoMode ? <div className="excel-import">
+            {!isGyuhoMode && !isTwoWayMode ? <div className="excel-import">
               <div><b>엑셀 자동 입력</b><p>저장된 번호별 차량 수를 같은 15분 시간대의 소계 칸에 넣습니다. 원본 서식과 다른 값은 그대로 유지됩니다.</p></div>
               <label className="excel-file"><input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => { setExcelFile(event.target.files?.[0] ?? null); setExcelState({ kind: "idle", message: "" }); }} /><span>{excelFile ? excelFile.name : "엑셀 파일 선택"}</span></label>
               <button type="button" className="excel-fill" disabled={excelState.kind === "working"} onClick={fillExcelTemplate}>{excelState.kind === "working" ? "입력 중…" : "기록 입력 후 다운로드"}</button>
               {excelState.message && <p className={`excel-message ${excelState.kind}`} role="status">{excelState.message}</p>}
-            </div> : <div className="gyuho-export-note"><b>차량 분류 기록 내보내기</b><p>규호 모드는 방향별 6개 차량 분류를 표 복사 또는 CSV 다운로드로 내보냅니다.</p></div>}
+            </div> : <div className="gyuho-export-note"><b>{isTwoWayMode ? "2way 기록 내보내기" : "차량 분류 기록 내보내기"}</b><p>{isTwoWayMode ? "유입·유출 기록은 표 복사 또는 CSV 다운로드로 내보냅니다." : "규호 모드는 방향별 6개 차량 분류를 표 복사 또는 CSV 다운로드로 내보냅니다."}</p></div>}
             <div className="table-wrap"><table><thead><tr><th>시간</th>{tableColumns.map(({ key, label }) => <th key={key}>{label}</th>)}<th>합계</th></tr></thead><tbody>{slots.map(({ key: rowSlot, label }) => { const row = records[rowSlot]; const values = tableColumns.map(({ key }) => row?.[key] ?? 0); const sum = values.reduce((a, b) => a + b, 0); return <tr className={row ? "has-data" : ""} key={rowSlot}><th>{label}</th>{values.map((value, index) => <td key={tableColumns[index].key}>{value}</td>)}<td className="row-total">{sum}</td></tr>; })}</tbody></table></div>
           </section>
         </div>
@@ -621,12 +630,12 @@ export default function Home() {
                 <button type="button" className={theme === "dark" ? "selected" : ""} onClick={() => setTheme("dark")}><i className="swatch dark" /><span><b>검정색</b><small>어두운 환경</small></span></button>
                 <button type="button" className={theme === "green" ? "selected" : ""} onClick={() => setTheme("green")}><i className="swatch green" /><span><b>은은한 그린</b><small>눈이 편안한 색감</small></span></button>
               </div></fieldset>
-              <fieldset><legend>모드 1·2 조작 방식</legend><div className="input-style-options"><button type="button" className={inputStyle === "card" ? "selected" : ""} onClick={() => setInputStyle("card")}><b>카드 클릭</b><small>좌클릭 +1 · 우클릭 −1</small></button><button type="button" className={inputStyle === "buttons" ? "selected" : ""} onClick={() => setInputStyle("buttons")}><b>− / + 버튼</b><small>모바일에서 편리한 방식</small></button></div><p className="input-style-note">모드 3과 규호 모드는 항상 카드 클릭 방식으로 작동합니다.</p></fieldset>
+              <fieldset><legend>모드 1·2·2way 조작 방식</legend><div className="input-style-options"><button type="button" className={inputStyle === "card" ? "selected" : ""} onClick={() => setInputStyle("card")}><b>카드 클릭</b><small>좌클릭 +1 · 우클릭 −1</small></button><button type="button" className={inputStyle === "buttons" ? "selected" : ""} onClick={() => setInputStyle("buttons")}><b>− / + 버튼</b><small>모바일에서 편리한 방식</small></button></div><p className="input-style-note">모드 3과 규호 모드는 항상 카드 클릭 방식으로 작동합니다.</p></fieldset>
               <fieldset><legend>버튼 소리</legend><label className="sound-toggle"><span><b>소리 사용</b><small>− / + 버튼을 누를 때 재생</small></span><input type="checkbox" checked={soundOn} onChange={(e) => setSoundOn(e.target.checked)} /><i /></label>
                 <div className="sound-options">{soundNames.map((name) => <button type="button" key={name} disabled={!soundOn} className={soundName === name ? "selected" : ""} onClick={() => setSoundName(name)}>{soundLabel(name)}</button>)}</div>
                 <label className={`volume-control ${!soundOn ? "disabled" : ""}`}><span><b>볼륨</b><output>{volume}%</output></span><input type="range" min="0" max="100" step="5" value={volume} disabled={!soundOn} onChange={(e) => setVolume(Number(e.target.value))} aria-label="버튼 소리 볼륨" /></label>
                 <button type="button" className="sound-preview" disabled={!soundOn} onClick={() => playSound(true)}>소리 미리 듣기</button>
-                <div className={`counter-sound-settings ${!soundOn ? "disabled" : ""}`}><div className="counter-sound-heading"><b>번호별 소리</b><small>기본 소리와 다르게 들릴 번호만 변경하세요</small></div><div className="sound-mode-switch">{(["full", "photo", "box", "gyuho"] as Mode[]).map((soundMode) => <button type="button" key={soundMode} disabled={!soundOn} className={soundConfigMode === soundMode ? "selected" : ""} onClick={() => setSoundConfigMode(soundMode)}>{modeName(soundMode)}</button>)}</div><div className="counter-sound-grid">{counterIdsByMode[soundConfigMode].map((id) => <label key={`${soundConfigMode}-${id}`}><b>{id}번</b><select disabled={!soundOn} value={counterSounds[soundConfigMode][id]} onChange={(event) => { const nextSound = event.target.value as CounterSound; setCounterSounds((current) => ({ ...current, [soundConfigMode]: { ...current[soundConfigMode], [id]: nextSound } })); playSound(true, 1, nextSound === "default" ? soundName : nextSound); }} aria-label={`${modeName(soundConfigMode)} ${id}번 소리`}><option value="default">기본 · {soundLabel(soundName)}</option>{soundNames.map((name) => <option key={name} value={name}>{soundLabel(name)}</option>)}</select></label>)}</div></div>
+                <div className={`counter-sound-settings ${!soundOn ? "disabled" : ""}`}><div className="counter-sound-heading"><b>번호별 소리</b><small>기본 소리와 다르게 들릴 번호만 변경하세요</small></div><div className="sound-mode-switch">{(["full", "photo", "box", "gyuho", "twoway"] as Mode[]).map((soundMode) => <button type="button" key={soundMode} disabled={!soundOn} className={soundConfigMode === soundMode ? "selected" : ""} onClick={() => setSoundConfigMode(soundMode)}>{modeName(soundMode)}</button>)}</div><div className="counter-sound-grid">{counterIdsByMode[soundConfigMode].map((id) => <label key={`${soundConfigMode}-${id}`}><b>{soundConfigMode === "twoway" ? twoWayLabel(id) : `${id}번`}</b><select disabled={!soundOn} value={counterSounds[soundConfigMode][id]} onChange={(event) => { const nextSound = event.target.value as CounterSound; setCounterSounds((current) => ({ ...current, [soundConfigMode]: { ...current[soundConfigMode], [id]: nextSound } })); playSound(true, 1, nextSound === "default" ? soundName : nextSound); }} aria-label={`${modeName(soundConfigMode)} ${soundConfigMode === "twoway" ? twoWayLabel(id) : `${id}번`} 소리`}><option value="default">기본 · {soundLabel(soundName)}</option>{soundNames.map((name) => <option key={name} value={name}>{soundLabel(name)}</option>)}</select></label>)}</div></div>
               </fieldset>
             </div>
             <footer><button type="button" onClick={() => setShowSettings(false)}>완료</button></footer>

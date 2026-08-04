@@ -46,6 +46,19 @@ test("12개 모드와 6개 모드의 여러 기록 슬롯을 분리해서 유지
   assert.equal(migrated.activeRecordIds.full, "full-b");
   assert.equal(migrated.library.box[0].id, "box-1");
   assert.equal(migrated.library.gyuho[0].id, "gyuho-1");
+  assert.equal(migrated.library.twoway[0].id, "twoway-1");
+});
+
+test("2way 모드는 유입·유출 기록을 다른 모드와 분리한다", () => {
+  const migrated = migrateToLibrary({
+    mode: "twoway",
+    records: { "24": { 1: 17, 2: 12 } },
+    drafts: {},
+    slot: "25",
+  });
+  assert.equal(migrated.library.twoway[0].records["24"][1], 17);
+  assert.equal(migrated.library.twoway[0].records["24"][2], 12);
+  assert.deepEqual(migrated.library.full[0].records, {});
 });
 
 test("규호 모드의 방향별 차량 분류 기록을 별도로 저장한다", () => {

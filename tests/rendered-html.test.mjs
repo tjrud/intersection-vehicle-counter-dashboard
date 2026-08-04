@@ -97,7 +97,7 @@ test("모드 1과 2의 카드 클릭 및 버튼 조작 방식을 선택한다", 
   ]);
   assert.match(page, /type InputStyle = "card" \| "buttons"/);
   assert.match(page, /const usesCardControls = isBoxMode \|\| isGyuhoMode \|\| inputStyle === "card"/);
-  assert.match(page, /모드 1·2 조작 방식/);
+  assert.match(page, /모드 1·2·2way 조작 방식/);
   assert.match(page, /모드 3과 규호 모드는 항상 카드 클릭 방식/);
   assert.match(page, /inputStyle, selectedVehicle, soundOn/);
   assert.match(css, /\.click-counter/);
@@ -120,4 +120,20 @@ test("규호 모드에서 12방향과 6개 차량 분류를 집계한다", async
   assert.match(page, /표 복사 또는 CSV 다운로드/);
   assert.match(storage, /"gyuho"/);
   assert.match(css, /\.vehicle-selector/);
+});
+
+test("2way 모드에서 유입과 유출을 별도로 집계한다", async () => {
+  const [page, storage, css] = await Promise.all([
+    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/record-storage.mjs", root), "utf8"),
+    readFile(new URL("app/globals.css", root), "utf8"),
+  ]);
+  assert.match(page, /const twoWayMode/);
+  assert.match(page, /2way 모드/);
+  assert.match(page, /유입 · 유출/);
+  assert.match(page, /2way 기록 내보내기/);
+  assert.match(storage, /"twoway"/);
+  assert.match(css, /\.twoway-layout/);
+  assert.match(css, /\.twoway-counter\.twoway-in/);
+  assert.match(css, /\.twoway-counter\.twoway-out/);
 });
