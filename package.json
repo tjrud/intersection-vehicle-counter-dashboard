@@ -1,15 +1,18 @@
 {
   "name": "intersection-vehicle-counter-dashboard",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
+  "packageManager": "npm@11.9.0",
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "vinext dev",
-    "build": "vinext build",
-    "start": "vinext start",
-    "test": "npm run build && node --test",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "dev:sites": "vinext dev",
+    "build:sites": "vinext build",
+    "test": "npm run build:sites && node --test",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },

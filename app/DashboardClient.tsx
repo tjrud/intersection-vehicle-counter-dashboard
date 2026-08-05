@@ -165,7 +165,7 @@ const setNumericCell = (document: XMLDocument, row: Element, column: string, row
   cell.appendChild(valueNode);
 };
 
-export default function DashboardClient({ user }: { user: { displayName: string; email: string } }) {
+export default function DashboardClient({ user, authProvider }: { user: { displayName: string; email: string }; authProvider: "chatgpt" | "password" }) {
   const [workspaceView, setWorkspaceView] = useState<"home" | "preprocess" | "counter">("home");
   const mode: Mode = "custom";
   const [library, setLibrary] = useState<RecordLibrary>(() => createEmptyLibrary().library as RecordLibrary);
@@ -745,8 +745,8 @@ export default function DashboardClient({ user }: { user: { displayName: string;
           <summary aria-label="계정 설정 열기"><span className="sidebar-avatar">{user.displayName.slice(0, 1).toUpperCase()}</span><span className="sidebar-account-copy"><b>{user.displayName}</b><small>{user.email}</small></span><i aria-hidden="true">⚙</i></summary>
           <div className="account-menu">
             <header><span>{user.displayName.slice(0, 1).toUpperCase()}</span><div><small>현재 로그인 계정</small><b>{user.displayName}</b><p>{user.email}</p></div></header>
-            <a className="account-switch" href="/signout-with-chatgpt?return_to=%2Fsignin-with-chatgpt%3Freturn_to%3D%252F"><span>⇄</span><div><b>계정 전환</b><small>로그아웃 후 다른 계정으로 로그인</small></div></a>
-            <a className="account-signout" href="/signout-with-chatgpt?return_to=%2F"><span>↗</span><b>로그아웃</b></a>
+            <a className="account-switch" href={authProvider === "password" ? "/api/auth/logout" : "/signout-with-chatgpt?return_to=%2Fsignin-with-chatgpt%3Freturn_to%3D%252F"}><span>⇄</span><div><b>계정 전환</b><small>로그아웃 후 다른 계정으로 로그인</small></div></a>
+            <a className="account-signout" href={authProvider === "password" ? "/api/auth/logout" : "/signout-with-chatgpt?return_to=%2F"}><span>↗</span><b>로그아웃</b></a>
           </div>
         </details>
       </aside>

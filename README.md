@@ -23,7 +23,7 @@
 - 버튼 효과음, 소리 종류 및 볼륨 설정
 - 브라우저 로컬 저장소를 이용한 작성 내용 유지
 
-## 실행
+## 로컬 실행
 
 Node.js 22.13 이상이 필요합니다.
 
@@ -37,6 +37,21 @@ npm run dev
 ```bash
 npm run build
 ```
+
+## Vercel 배포
+
+Vercel에서 이 GitHub 저장소를 Import하면 Next.js 프로젝트로 자동 인식됩니다. Root Directory는 저장소 루트, Build Command는 `npm run build`를 사용합니다.
+
+Project Settings → Environment Variables에 아래 네 값을 추가한 뒤 배포하세요.
+
+- `DASHBOARD_NAME`: 화면에 표시할 사용자 이름
+- `DASHBOARD_EMAIL`: 로그인 이메일
+- `DASHBOARD_PASSWORD`: 로그인 비밀번호
+- `AUTH_SECRET`: 충분히 긴 임의 문자열
+
+값의 형식은 `.env.example`에서 확인할 수 있습니다. 비밀번호와 `AUTH_SECRET`은 GitHub에 직접 올리지 마세요. 환경변수를 변경했다면 Vercel에서 다시 배포해야 적용됩니다.
+
+기존 Sites 배포를 확인할 때는 `npm run build:sites`를 사용할 수 있습니다.
 
 ## 공개 대시보드
 

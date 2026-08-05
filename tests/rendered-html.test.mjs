@@ -168,6 +168,7 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
     readFile(new URL("app/globals.css", root), "utf8"),
   ]);
   assert.match(entry, /ChatGPT로 로그인/);
+  assert.match(entry, /api\/auth\/login/);
   assert.match(entry, /getChatGPTUser/);
   assert.match(auth, /signin-with-chatgpt/);
   assert.match(dashboard, /영상 전처리/);
@@ -183,6 +184,7 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(dashboard, /계정 전환/);
   assert.match(dashboard, /현재 로그인 계정/);
   assert.match(dashboard, /signout-with-chatgpt/);
+  assert.match(dashboard, /api\/auth\/logout/);
   assert.match(preprocess, /webkitdirectory/);
   assert.match(preprocess, /전처리 실행 파일 만들기/);
   assert.match(preprocess, /PowerShell · FFmpeg/);
