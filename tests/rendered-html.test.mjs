@@ -172,10 +172,16 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(auth, /signin-with-chatgpt/);
   assert.match(dashboard, /영상 전처리/);
   assert.match(dashboard, /차량 카운팅/);
+  assert.match(dashboard, /계정 및 로그인/);
+  assert.match(dashboard, /계정 전환/);
+  assert.match(dashboard, /현재 로그인 계정/);
+  assert.match(dashboard, /signout-with-chatgpt/);
   assert.match(preprocess, /webkitdirectory/);
   assert.match(preprocess, /전처리 실행 파일 만들기/);
   assert.match(preprocess, /PowerShell · FFmpeg/);
   assert.match(css, /\.dashboard-app/);
   assert.match(css, /\.preprocess-workspace/);
   assert.match(css, /\.login-page/);
+  assert.match(css, /\.dashboard-settings/);
+  assert.match(css, /\.account-menu/);
 });

@@ -738,7 +738,14 @@ export default function DashboardClient({ user }: { user: { displayName: string;
           <button type="button" className={workspaceView === "preprocess" ? "active" : ""} onClick={() => setWorkspaceView("preprocess")}><i>01</i><span><b>영상 전처리</b><small>원본 폴더 · 3배속 변환</small></span></button>
           <button type="button" className={workspaceView === "counter" ? "active" : ""} onClick={() => setWorkspaceView("counter")}><i>02</i><span><b>차량 카운팅</b><small>15분 기록 · 클릭 로그</small></span></button>
         </nav>
-        <div className="dashboard-account"><span>{user.displayName.slice(0, 1).toUpperCase()}</span><div><b>{user.displayName}</b><small>{user.email}</small></div><a href="/signout-with-chatgpt?return_to=/" aria-label="로그아웃">↗</a></div>
+        <details className="dashboard-settings">
+          <summary aria-label="계정 설정 열기"><span aria-hidden="true">⚙</span><b>설정</b><small>계정 및 로그인</small></summary>
+          <div className="account-menu">
+            <header><span>{user.displayName.slice(0, 1).toUpperCase()}</span><div><small>현재 로그인 계정</small><b>{user.displayName}</b><p>{user.email}</p></div></header>
+            <a className="account-switch" href="/signout-with-chatgpt?return_to=%2Fsignin-with-chatgpt%3Freturn_to%3D%252F"><span>⇄</span><div><b>계정 전환</b><small>로그아웃 후 다른 계정으로 로그인</small></div></a>
+            <a className="account-signout" href="/signout-with-chatgpt?return_to=%2F"><span>↗</span><b>로그아웃</b></a>
+          </div>
+        </details>
       </aside>
       <section className="dashboard-stage">
       {workspaceView === "preprocess" ? <PreprocessWorkspace onOpenCounter={() => setWorkspaceView("counter")} /> : <div className="app-shell">
