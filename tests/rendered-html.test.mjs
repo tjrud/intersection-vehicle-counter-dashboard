@@ -174,8 +174,9 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(entry, /api\/auth\/signup/);
   assert.match(entry, /api\/auth\/reset/);
   assert.match(entry, /비밀번호를 잊으셨나요/);
-  assert.match(loginVisual, /intersection-dashboard-hero\.png/);
-  assert.match(loginVisual, /intersection-scanner/);
+  assert.doesNotMatch(loginVisual, /intersection-dashboard-hero\.png/);
+  assert.match(loginVisual, /hologram-projection/);
+  assert.match(loginVisual, /future-features/);
   assert.match(entry, /<b>DASHBOARD<\/b>/);
   assert.match(entry, /<LoginVisual \/>/);
   assert.match(entry, /getChatGPTUser/);
@@ -203,8 +204,9 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(css, /\.preprocess-workspace/);
   assert.match(css, /\.login-page/);
   assert.match(css, /\.intersection-art/);
-  assert.match(css, /@keyframes hero-drive-east/);
-  assert.match(css, /\.intersection-scanner/);
+  assert.match(css, /@keyframes holo-spin/);
+  assert.match(css, /\.hologram-projection/);
+  assert.match(css, /\.digital-intersection/);
   assert.match(css, /--font-display/);
   assert.match(css, /\.dashboard-settings/);
   assert.match(css, /\.account-menu/);
