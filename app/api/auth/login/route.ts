@@ -6,7 +6,7 @@ export async function POST(request: Request) {
   const email = String(data.get("email") ?? "").trim();
   const password = String(data.get("password") ?? "");
   const url = new URL("/", request.url);
-  if (!validPasswordCredentials(email, password)) {
+  if (!await validPasswordCredentials(email, password)) {
     url.searchParams.set("auth_error", "invalid");
     return NextResponse.redirect(url, 303);
   }

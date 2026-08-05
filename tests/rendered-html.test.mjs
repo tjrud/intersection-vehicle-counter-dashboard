@@ -160,17 +160,25 @@ test("카운터 조작마다 클릭 로그를 저장하고 내보낸다", async 
 });
 
 test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로 제공한다", async () => {
-  const [entry, dashboard, preprocess, auth, css] = await Promise.all([
+  const [entry, dashboard, preprocess, auth, passwordAuth, css] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("app/DashboardClient.tsx", root), "utf8"),
     readFile(new URL("app/PreprocessWorkspace.tsx", root), "utf8"),
     readFile(new URL("app/chatgpt-auth.ts", root), "utf8"),
+    readFile(new URL("app/password-auth.ts", root), "utf8"),
     readFile(new URL("app/globals.css", root), "utf8"),
   ]);
   assert.match(entry, /ChatGPT로 로그인/);
   assert.match(entry, /api\/auth\/login/);
+  assert.match(entry, /api\/auth\/signup/);
+  assert.match(entry, /api\/auth\/reset/);
+  assert.match(entry, /비밀번호를 잊으셨나요/);
+  assert.match(entry, /intersection-art/);
+  assert.match(entry, /<b>대시보드<\/b>/);
   assert.match(entry, /getChatGPTUser/);
   assert.match(auth, /signin-with-chatgpt/);
+  assert.match(passwordAuth, /scryptSync/);
+  assert.match(passwordAuth, /DASHBOARD_ACCOUNT_COOKIE/);
   assert.match(dashboard, /영상 전처리/);
   assert.match(dashboard, /차량 카운팅/);
   assert.match(dashboard, /현황 · 빠른 실행/);
@@ -191,6 +199,8 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(css, /\.dashboard-app/);
   assert.match(css, /\.preprocess-workspace/);
   assert.match(css, /\.login-page/);
+  assert.match(css, /\.intersection-art/);
+  assert.match(css, /--font-display/);
   assert.match(css, /\.dashboard-settings/);
   assert.match(css, /\.account-menu/);
   assert.match(css, /\.dashboard-home/);
