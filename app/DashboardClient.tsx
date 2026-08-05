@@ -166,7 +166,7 @@ const setNumericCell = (document: XMLDocument, row: Element, column: string, row
 };
 
 export default function DashboardClient({ user }: { user: { displayName: string; email: string } }) {
-  const [workspaceView, setWorkspaceView] = useState<"preprocess" | "counter">("counter");
+  const [workspaceView, setWorkspaceView] = useState<"home" | "preprocess" | "counter">("home");
   const mode: Mode = "custom";
   const [library, setLibrary] = useState<RecordLibrary>(() => createEmptyLibrary().library as RecordLibrary);
   const [activeRecordIds, setActiveRecordIds] = useState<ActiveRecordIds>(() => createEmptyLibrary().activeRecordIds as ActiveRecordIds);
@@ -264,6 +264,9 @@ export default function DashboardClient({ user }: { user: { displayName: string;
   const total = useMemo(() => positions.reduce((sum, { id }) => sum + (counts[id] ?? 0), 0), [counts, positions]);
   const tableColumns = ids.map((id) => ({ key: String(id), label: `${id}번 ${movementName(movementForCounter(id))}` }));
   const savedCurrent = Boolean(records[slot]);
+  const homeSavedSlots = Object.keys(records).length;
+  const homeVehicleTotal = Object.values(records).reduce((totalValue, row) => totalValue + Object.values(row).reduce((rowTotal, value) => rowTotal + value, 0), 0);
+  const homeRecentLogs = [...(activeRecordSet.clickLogs ?? [])].slice(-5).reverse();
 
   const updateActiveRecordSet = (update: (recordSet: RecordSet) => RecordSet) => {
     setLibrary((current) => ({
@@ -735,11 +738,12 @@ export default function DashboardClient({ user }: { user: { displayName: string;
       <aside className="dashboard-sidebar">
         <div className="dashboard-brand"><span>IC</span><div><b>Intersection</b><small>CONTROL DASHBOARD</small></div></div>
         <nav aria-label="대시보드 메뉴">
+          <button type="button" className={workspaceView === "home" ? "active" : ""} onClick={() => setWorkspaceView("home")}><i>00</i><span><b>HOME</b><small>현황 · 빠른 실행</small></span></button>
           <button type="button" className={workspaceView === "preprocess" ? "active" : ""} onClick={() => setWorkspaceView("preprocess")}><i>01</i><span><b>영상 전처리</b><small>원본 폴더 · 3배속 변환</small></span></button>
           <button type="button" className={workspaceView === "counter" ? "active" : ""} onClick={() => setWorkspaceView("counter")}><i>02</i><span><b>차량 카운팅</b><small>15분 기록 · 클릭 로그</small></span></button>
         </nav>
         <details className="dashboard-settings">
-          <summary aria-label="계정 설정 열기"><span aria-hidden="true">⚙</span><b>설정</b><small>계정 및 로그인</small></summary>
+          <summary aria-label="계정 설정 열기"><span className="sidebar-avatar">{user.displayName.slice(0, 1).toUpperCase()}</span><span className="sidebar-account-copy"><b>{user.displayName}</b><small>{user.email}</small></span><i aria-hidden="true">⚙</i></summary>
           <div className="account-menu">
             <header><span>{user.displayName.slice(0, 1).toUpperCase()}</span><div><small>현재 로그인 계정</small><b>{user.displayName}</b><p>{user.email}</p></div></header>
             <a className="account-switch" href="/signout-with-chatgpt?return_to=%2Fsignin-with-chatgpt%3Freturn_to%3D%252F"><span>⇄</span><div><b>계정 전환</b><small>로그아웃 후 다른 계정으로 로그인</small></div></a>
@@ -748,7 +752,11 @@ export default function DashboardClient({ user }: { user: { displayName: string;
         </details>
       </aside>
       <section className="dashboard-stage">
-      {workspaceView === "preprocess" ? <PreprocessWorkspace onOpenCounter={() => setWorkspaceView("counter")} /> : <div className="app-shell">
+      {workspaceView === "home" ? <section className="dashboard-home">
+        <header className="home-hero"><div><p>TRAFFIC OPERATIONS</p><h1>{user.displayName}님, 오늘 조사도 정확하게.</h1><span>영상 준비부터 현장 카운팅과 기록 내보내기까지 한 화면에서 이어가세요.</span></div><div className="home-clock"><small>현재 기록 구간</small><b>{slots[Number(slot)].label}</b><span>{savedCurrent ? "저장 완료" : "작성 준비"}</span></div></header>
+        <div className="home-stats"><article><span>저장된 시간대</span><b>{homeSavedSlots}<small>/ 96</small></b><i><em style={{ width: `${Math.round(homeSavedSlots / 96 * 100)}%` }} /></i></article><article><span>누적 통행량</span><b>{homeVehicleTotal.toLocaleString()}<small>대</small></b><p>{activeRecordSet.name}</p></article><article><span>클릭 기록</span><b>{activeRecordSet.clickLogs.length.toLocaleString()}<small>건</small></b><p>모든 +/− 조작 기록</p></article></div>
+        <div className="home-grid"><section className="home-actions"><header><div><b>빠른 실행</b><span>작업을 선택해 바로 시작하세요.</span></div></header><button type="button" onClick={() => setWorkspaceView("counter")}><i>02</i><div><b>차량 카운팅 이어하기</b><span>{activeRecordSet.name} · {slots[Number(slot)].label}</span></div><strong>→</strong></button><button type="button" onClick={() => setWorkspaceView("preprocess")}><i>01</i><div><b>새 영상 전처리</b><span>로컬 영상 선택 · 24시간 · 3배속</span></div><strong>→</strong></button></section><section className="home-activity"><header><div><b>최근 활동</b><span>현재 기록의 마지막 조작</span></div><button type="button" onClick={() => setWorkspaceView("counter")}>전체 보기</button></header><div>{homeRecentLogs.length ? homeRecentLogs.map((log, index) => <article key={`${log.t}-${index}`}><time>{formatClickTime(log.t).slice(11, 19)}</time><span className={log.d > 0 ? "plus" : "minus"}>{log.d > 0 ? "+1" : "−1"}</span><b>{log.n}번 · {movementName(log.m ?? movementForCounter(log.n))}</b><small>{log.b} → {log.a}</small></article>) : <p>아직 클릭 기록이 없습니다.<br />차량 카운팅을 시작하면 여기에 표시됩니다.</p>}</div></section></div>
+      </section> : workspaceView === "preprocess" ? <PreprocessWorkspace onOpenCounter={() => setWorkspaceView("counter")} /> : <div className="app-shell">
       <header className="topbar">
         <div><p className="eyebrow"><span className="live-dot" />현장 집계 중</p><h1>교차로 차량 카운터</h1></div>
         <div className="total-card" aria-live="polite"><span>현재 구간 합계</span><strong>{total.toLocaleString()}</strong><small>대</small></div>
