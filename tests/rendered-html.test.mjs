@@ -23,7 +23,7 @@ test("교차로 차량 카운터 페이지를 제공한다", async () => {
 
 test("엑셀 자동 입력 기능과 원본 보존 안내를 포함한다", async () => {
   const [page, packageJson] = await Promise.all([
-    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/DashboardClient.tsx", root), "utf8"),
     readFile(new URL("package.json", root), "utf8"),
   ]);
   assert.match(page, /엑셀 자동 입력/);
@@ -41,7 +41,7 @@ test("엑셀 자동 입력 기능과 원본 보존 안내를 포함한다", asyn
 
 test("자정 전후의 기존 날짜별 기록을 한 기록표로 복구한다", async () => {
   const [page, storage] = await Promise.all([
-    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/DashboardClient.tsx", root), "utf8"),
     readFile(new URL("app/record-storage.mjs", root), "utf8"),
   ]);
   assert.match(page, /intersection-timed-records-v2/);
@@ -53,7 +53,7 @@ test("자정 전후의 기존 날짜별 기록을 한 기록표로 복구한다"
 });
 
 test("모드별 다중 기록 슬롯 선택과 생성 기능을 제공한다", async () => {
-  const page = await readFile(new URL("app/page.tsx", root), "utf8");
+  const page = await readFile(new URL("app/DashboardClient.tsx", root), "utf8");
   assert.match(page, /기록 슬롯/);
   assert.match(page, /\+ 새 기록/);
   assert.match(page, /이름 변경/);
@@ -80,7 +80,7 @@ test("모드 3 색상과 모드 2의 큰 조작 버튼 스타일을 제공한다
 
 test("모드별 번호마다 버튼 소리를 설정하고 저장한다", async () => {
   const [page, css] = await Promise.all([
-    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/DashboardClient.tsx", root), "utf8"),
     readFile(new URL("app/globals.css", root), "utf8"),
   ]);
   assert.match(page, /type CounterSounds = Record<Mode/);
@@ -92,7 +92,7 @@ test("모드별 번호마다 버튼 소리를 설정하고 저장한다", async 
 
 test("커스텀 카운터의 카드 클릭 및 버튼 조작 방식을 선택한다", async () => {
   const [page, css] = await Promise.all([
-    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/DashboardClient.tsx", root), "utf8"),
     readFile(new URL("app/globals.css", root), "utf8"),
   ]);
   assert.match(page, /type InputStyle = "card" \| "buttons"/);
@@ -106,7 +106,7 @@ test("커스텀 카운터의 카드 클릭 및 버튼 조작 방식을 선택한
 
 test("규호 모드에서 12방향과 6개 차량 분류를 집계한다", async () => {
   const [page, storage, css] = await Promise.all([
-    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/DashboardClient.tsx", root), "utf8"),
     readFile(new URL("app/record-storage.mjs", root), "utf8"),
     readFile(new URL("app/globals.css", root), "utf8"),
   ]);
@@ -124,7 +124,7 @@ test("규호 모드에서 12방향과 6개 차량 분류를 집계한다", async
 
 test("커스텀 모드에서 교차로별 번호·방향·차선 수를 설정한다", async () => {
   const [page, storage, css] = await Promise.all([
-    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/DashboardClient.tsx", root), "utf8"),
     readFile(new URL("app/record-storage.mjs", root), "utf8"),
     readFile(new URL("app/globals.css", root), "utf8"),
   ]);
@@ -144,7 +144,7 @@ test("커스텀 모드에서 교차로별 번호·방향·차선 수를 설정�
 
 test("카운터 조작마다 클릭 로그를 저장하고 내보낸다", async () => {
   const [page, storage, css] = await Promise.all([
-    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/DashboardClient.tsx", root), "utf8"),
     readFile(new URL("app/record-storage.mjs", root), "utf8"),
     readFile(new URL("app/globals.css", root), "utf8"),
   ]);
@@ -157,4 +157,25 @@ test("카운터 조작마다 클릭 로그를 저장하고 내보낸다", async 
   assert.match(storage, /normalizeClickLogs/);
   assert.match(css, /\.click-log-panel/);
   assert.match(css, /\.main-click-log/);
+});
+
+test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로 제공한다", async () => {
+  const [entry, dashboard, preprocess, auth, css] = await Promise.all([
+    readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/DashboardClient.tsx", root), "utf8"),
+    readFile(new URL("app/PreprocessWorkspace.tsx", root), "utf8"),
+    readFile(new URL("app/chatgpt-auth.ts", root), "utf8"),
+    readFile(new URL("app/globals.css", root), "utf8"),
+  ]);
+  assert.match(entry, /ChatGPT로 로그인/);
+  assert.match(entry, /getChatGPTUser/);
+  assert.match(auth, /signin-with-chatgpt/);
+  assert.match(dashboard, /영상 전처리/);
+  assert.match(dashboard, /차량 카운팅/);
+  assert.match(preprocess, /webkitdirectory/);
+  assert.match(preprocess, /전처리 실행 파일 만들기/);
+  assert.match(preprocess, /PowerShell · FFmpeg/);
+  assert.match(css, /\.dashboard-app/);
+  assert.match(css, /\.preprocess-workspace/);
+  assert.match(css, /\.login-page/);
 });

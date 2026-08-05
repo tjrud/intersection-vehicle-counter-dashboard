@@ -9,8 +9,8 @@ const notoSansKr = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "교차로 차량 카운터",
-  description: "12개 방향의 차량 통행량을 빠르고 간편하게 집계합니다.",
+  title: "교차로 차량 조사 대시보드",
+  description: "로그인 후 영상 전처리와 차량 카운팅을 한 곳에서 관리합니다.",
   icons: { icon: "/favicon.svg" },
 };
 
