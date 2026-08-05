@@ -173,8 +173,8 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(entry, /api\/auth\/signup/);
   assert.match(entry, /api\/auth\/reset/);
   assert.match(entry, /비밀번호를 잊으셨나요/);
-  assert.match(entry, /intersection-art/);
-  assert.match(entry, /<b>대시보드<\/b>/);
+  assert.match(entry, /intersection-dashboard-hero\.png/);
+  assert.match(entry, /<b>DASHBOARD<\/b>/);
   assert.match(entry, /getChatGPTUser/);
   assert.match(auth, /signin-with-chatgpt/);
   assert.match(passwordAuth, /scryptSync/);

@@ -297,6 +297,11 @@ tbody tr.has-data th { color:var(--orange-dark); }
 [data-theme="dark"] tbody th,[data-theme="dark"] .row-total,[data-theme="dark"] tbody tr.has-data td,[data-theme="dark"] tbody tr.has-data th { background:#222b35; }
 [data-theme="green"] .total-card,[data-theme="green"] .center-mark,[data-theme="green"] thead th { background:#264a3c; }
 
+.login-brand b{font-family:Inter,var(--font-korean),sans-serif;font-weight:900;letter-spacing:.015em}
+.login-visual-photo{background:#03172f}
+.login-visual-photo::before,.login-visual-photo::after{display:none}
+.login-visual-photo img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}
+
 @media(max-width:1100px){
   .preprocess-grid{grid-template-columns:1fr 1fr}.source-card{grid-row:span 2}.dashboard-app{grid-template-columns:210px minmax(0,1fr)}.dashboard-home{padding:28px}.home-grid{grid-template-columns:1fr}
 }
