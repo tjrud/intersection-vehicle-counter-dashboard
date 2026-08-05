@@ -207,7 +207,8 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(css, /@keyframes holo-spin/);
   assert.match(css, /\.hologram-projection/);
   assert.match(css, /\.digital-intersection/);
-  assert.match(css, /--font-display/);
+  assert.match(css, /--font-korean/);
+  assert.doesNotMatch(css, /font-display/);
   assert.match(css, /\.dashboard-settings/);
   assert.match(css, /\.account-menu/);
   assert.match(css, /\.dashboard-home/);
