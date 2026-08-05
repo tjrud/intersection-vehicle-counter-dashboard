@@ -738,9 +738,8 @@ export default function DashboardClient({ user }: { user: { displayName: string;
       <aside className="dashboard-sidebar">
         <div className="dashboard-brand"><span>IC</span><div><b>Intersection</b><small>CONTROL DASHBOARD</small></div></div>
         <nav aria-label="대시보드 메뉴">
-          <button type="button" className={workspaceView === "home" ? "active" : ""} onClick={() => setWorkspaceView("home")}><i>00</i><span><b>HOME</b><small>현황 · 빠른 실행</small></span></button>
-          <button type="button" className={workspaceView === "preprocess" ? "active" : ""} onClick={() => setWorkspaceView("preprocess")}><i>01</i><span><b>영상 전처리</b><small>원본 폴더 · 3배속 변환</small></span></button>
-          <button type="button" className={workspaceView === "counter" ? "active" : ""} onClick={() => setWorkspaceView("counter")}><i>02</i><span><b>차량 카운팅</b><small>15분 기록 · 클릭 로그</small></span></button>
+          <section className="nav-group"><h2>NAVIGATION</h2><button type="button" className={workspaceView === "home" ? "active" : ""} onClick={() => setWorkspaceView("home")}><i>⌂</i><span><b>HOME</b><small>현황 · 빠른 실행</small></span></button></section>
+          <section className="nav-group"><h2>PROJECTS</h2><button type="button" className={workspaceView === "preprocess" ? "active" : ""} onClick={() => setWorkspaceView("preprocess")}><i>▶</i><span><b>영상 전처리</b><small>원본 폴더 · 3배속 변환</small></span></button><button type="button" className={workspaceView === "counter" ? "active" : ""} onClick={() => setWorkspaceView("counter")}><i>＋</i><span><b>차량 카운팅</b><small>15분 기록 · 클릭 로그</small></span></button></section>
         </nav>
         <details className="dashboard-settings">
           <summary aria-label="계정 설정 열기"><span className="sidebar-avatar">{user.displayName.slice(0, 1).toUpperCase()}</span><span className="sidebar-account-copy"><b>{user.displayName}</b><small>{user.email}</small></span><i aria-hidden="true">⚙</i></summary>

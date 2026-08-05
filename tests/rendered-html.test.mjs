@@ -173,6 +173,9 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(dashboard, /영상 전처리/);
   assert.match(dashboard, /차량 카운팅/);
   assert.match(dashboard, /현황 · 빠른 실행/);
+  assert.match(dashboard, /NAVIGATION/);
+  assert.match(dashboard, /PROJECTS/);
+  assert.match(dashboard, /nav-group/);
   assert.match(dashboard, /누적 통행량/);
   assert.match(dashboard, /차량 카운팅 이어하기/);
   assert.match(dashboard, /sidebar-account-copy/);
