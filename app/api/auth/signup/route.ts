@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { AUTH_COOKIE_OPTIONS, createLocalAccount, createPasswordSession, DASHBOARD_ACCOUNT_COOKIE, DASHBOARD_SESSION_COOKIE, passwordAuthConfigured } from "../../../password-auth";
+import { recordUsage } from "../../../usage-store";
 
 export async function POST(request: Request) {
   const data = await request.formData();
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
   else if (name.length < 2 || !email.includes("@") || password.length < 8 || password !== confirm) target.searchParams.set("auth_error", "signup");
   if (target.searchParams.has("auth_error")) { target.searchParams.set("auth_view", "signup"); return NextResponse.redirect(target, 303); }
   const local = createLocalAccount(name, email, password);
+  await recordUsage({ userId: `vercel:${local.account.email}`, displayName: local.account.name, email: local.account.email, role: "user", provider: "password" }, "signup", "회원가입");
   const session = createPasswordSession(email);
   const response = NextResponse.redirect(target, 303);
   response.cookies.set(DASHBOARD_ACCOUNT_COOKIE, local.value, { ...AUTH_COOKIE_OPTIONS, maxAge: local.maxAge });

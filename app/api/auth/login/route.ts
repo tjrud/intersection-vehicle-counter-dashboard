@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createPasswordSession, DASHBOARD_SESSION_COOKIE, validPasswordCredentials } from "../../../password-auth";
+import { createPasswordSession, DASHBOARD_SESSION_COOKIE, getPasswordIdentity, validPasswordCredentials } from "../../../password-auth";
+import { recordUsage } from "../../../usage-store";
 
 export async function POST(request: Request) {
   const data = await request.formData();
@@ -10,6 +11,8 @@ export async function POST(request: Request) {
     url.searchParams.set("auth_error", "invalid");
     return NextResponse.redirect(url, 303);
   }
+  const identity = await getPasswordIdentity(email);
+  if (identity) await recordUsage(identity, "login", "대시보드 로그인");
   const session = createPasswordSession(email);
   const response = NextResponse.redirect(url, 303);
   response.cookies.set(DASHBOARD_SESSION_COOKIE, session.value, {

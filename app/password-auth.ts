@@ -82,6 +82,21 @@ export async function validPasswordCredentials(email: string, password: string) 
   return normalizedEmail === process.env.DASHBOARD_EMAIL?.toLowerCase() && safeEqual(password, process.env.DASHBOARD_PASSWORD ?? "");
 }
 
+export async function getPasswordIdentity(identifier: string) {
+  const normalized = identifier.trim().toLowerCase();
+  const adminId = process.env.ADMIN_ID?.trim().toLowerCase();
+  if (adminId && normalized === adminId && adminAuthConfigured()) {
+    return { userId: `admin:${adminId}`, displayName: process.env.ADMIN_NAME?.trim() || "관리자", email: process.env.ADMIN_ID!.trim(), role: "admin" as DashboardRole, provider: "password" as const };
+  }
+  const localAccount = await getLocalAccount();
+  if (localAccount?.email === normalized) return { userId: `vercel:${normalized}`, displayName: localAccount.name, email: localAccount.email, role: "user" as DashboardRole, provider: "password" as const };
+  if (normalized === process.env.DASHBOARD_EMAIL?.toLowerCase()) {
+    const displayName = process.env.DASHBOARD_NAME?.trim() || normalized.split("@")[0];
+    return { userId: `vercel:${normalized}`, displayName, email: normalized, role: "user" as DashboardRole, provider: "password" as const };
+  }
+  return null;
+}
+
 export async function canResetLocalAccount(email: string) {
   const account = await getLocalAccount();
   return account?.email === email.trim().toLowerCase() ? account : null;

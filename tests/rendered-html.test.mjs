@@ -160,13 +160,16 @@ test("카운터 조작마다 클릭 로그를 저장하고 내보낸다", async 
 });
 
 test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로 제공한다", async () => {
-  const [entry, loginVisual, dashboard, preprocess, liveCounting, adminWorkspace, auth, passwordAuth, css] = await Promise.all([
+  const [entry, loginVisual, dashboard, preprocess, liveCounting, adminWorkspace, usageStore, usageApi, usageInternalApi, auth, passwordAuth, css] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("app/LoginVisual.tsx", root), "utf8"),
     readFile(new URL("app/DashboardClient.tsx", root), "utf8"),
     readFile(new URL("app/PreprocessWorkspace.tsx", root), "utf8"),
     readFile(new URL("app/LiveCountingWorkspace.tsx", root), "utf8"),
     readFile(new URL("app/AdminWorkspace.tsx", root), "utf8"),
+    readFile(new URL("app/usage-store.ts", root), "utf8"),
+    readFile(new URL("app/api/usage/route.ts", root), "utf8"),
+    readFile(new URL("app/api/usage/internal/route.ts", root), "utf8"),
     readFile(new URL("app/chatgpt-auth.ts", root), "utf8"),
     readFile(new URL("app/password-auth.ts", root), "utf8"),
     readFile(new URL("app/globals.css", root), "utf8"),
@@ -209,9 +212,16 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(dashboard, /workspaceView === "admin"/);
   assert.match(dashboard, /user\.role === "admin"/);
   assert.match(dashboard, /관리자 페이지/);
-  assert.match(adminWorkspace, /ADMINISTRATION/);
-  assert.match(adminWorkspace, /시스템 상태/);
-  assert.match(adminWorkspace, /접근 권한/);
+  assert.match(adminWorkspace, /MEMBER ADMINISTRATION/);
+  assert.match(adminWorkspace, /가입 회원 목록/);
+  assert.match(adminWorkspace, /사용 기록/);
+  assert.match(adminWorkspace, /\/api\/usage/);
+  assert.match(usageStore, /INSERT INTO members/);
+  assert.match(usageStore, /INSERT INTO usage_events/);
+  assert.match(usageApi, /user\.role !== "admin"/);
+  assert.match(usageApi, /USAGE_API_ORIGIN/);
+  assert.match(usageInternalApi, /Bearer/);
+  assert.match(dashboard, /eventType: "page_view"/);
   assert.match(dashboard, /실시간 영상 계수/);
   assert.match(liveCounting, /navigator\.mediaDevices\.getUserMedia/);
   assert.match(liveCounting, /영상 파일 열기/);

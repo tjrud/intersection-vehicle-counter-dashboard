@@ -1,73 +1,74 @@
 "use client";
 
-type AdminSummary = {
-  recordSets: number;
-  savedSlots: number;
-  clickLogs: number;
-  vehicleTotal: number;
-  storageBytes: number;
-};
+import { useEffect, useMemo, useState } from "react";
 
-type Props = {
-  displayName: string;
-  adminId: string;
-  summary: AdminSummary;
-  onOpenHome: () => void;
-  onOpenLive: () => void;
-  onOpenCounter: () => void;
-};
+type Member = { id: string; name: string; email: string; provider: string; role: string; createdAt: number; lastSeenAt: number; loginCount: number };
+type UsageEvent = { id: number; memberId: string; memberName: string; memberEmail: string; eventType: string; detail: string; createdAt: number };
+type AdminData = { available: boolean; members: Member[]; events: UsageEvent[] };
+type Props = { displayName: string; adminId: string };
 
-const compactBytes = (bytes: number) => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-};
+const dateTime = (value: number) => new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value));
+const eventLabel = (event: UsageEvent) => event.eventType === "signup" ? "회원가입" : event.eventType === "login" ? "로그인" : event.detail;
+const providerLabel = (provider: string) => provider === "chatgpt" ? "ChatGPT" : "이메일";
 
-export default function AdminWorkspace({ displayName, adminId, summary, onOpenHome, onOpenLive, onOpenCounter }: Props) {
-  const modules = [
-    { name: "영상 전처리", state: "정상", detail: "로컬 폴더 · FFmpeg 작업 파일" },
-    { name: "실시간 영상 계수", state: "정상", detail: "카메라 · 로컬 영상 · 수동 계수" },
-    { name: "차량 카운팅", state: "정상", detail: "15분 기록 · 클릭 로그 · 엑셀" },
-    { name: "브라우저 저장소", state: "정상", detail: `${compactBytes(summary.storageBytes)} 사용 중` },
-  ];
+export default function AdminWorkspace({ displayName, adminId }: Props) {
+  const [data, setData] = useState<AdminData>({ available: true, members: [], events: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [eventFilter, setEventFilter] = useState("all");
+
+  const loadData = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/usage", { cache: "no-store" });
+      if (!response.ok) throw new Error("회원 기록을 불러오지 못했습니다.");
+      setData(await response.json() as AdminData);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "회원 기록을 불러오지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadData(); }, []);
+
+  const todayStart = new Date().setHours(0, 0, 0, 0);
+  const activeToday = data.members.filter((member) => member.lastSeenAt >= todayStart).length;
+  const totalLogins = data.members.reduce((sum, member) => sum + member.loginCount, 0);
+  const visibleMembers = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return needle ? data.members.filter((member) => `${member.name} ${member.email}`.toLowerCase().includes(needle)) : data.members;
+  }, [data.members, query]);
+  const visibleEvents = useMemo(() => data.events.filter((event) => eventFilter === "all" || event.eventType === eventFilter), [data.events, eventFilter]);
 
   return (
     <section className="admin-workspace">
       <header className="admin-hero">
-        <div><p>ADMINISTRATION</p><h1>관리자 페이지</h1><span>{displayName}님, 대시보드의 운영 상태와 현재 기기 기록을 확인하세요.</span></div>
-        <div className="admin-identity"><i>✓</i><div><small>관리자 인증 완료</small><b>{adminId}</b></div></div>
+        <div><p>MEMBER ADMINISTRATION</p><h1>회원 및 사용 기록</h1><span>가입된 회원과 대시보드 사용 이력을 확인합니다.</span></div>
+        <div className="admin-identity"><i>✓</i><div><small>{displayName} · 최고 관리자</small><b>{adminId}</b></div></div>
       </header>
 
-      <div className="admin-metrics">
-        <article><span>저장 기록</span><b>{summary.recordSets.toLocaleString()}</b><small>현재 기기의 기록 슬롯</small></article>
-        <article><span>저장된 시간대</span><b>{summary.savedSlots.toLocaleString()}</b><small>15분 단위 구간</small></article>
-        <article><span>누적 차량</span><b>{summary.vehicleTotal.toLocaleString()}</b><small>저장된 계수 합계</small></article>
-        <article><span>클릭 로그</span><b>{summary.clickLogs.toLocaleString()}</b><small>현재 기기의 조작 이력</small></article>
+      <div className="admin-member-metrics">
+        <article><span>가입 회원</span><b>{data.members.length.toLocaleString()}</b><small>관리자 계정 제외</small></article>
+        <article><span>오늘 활동 회원</span><b>{activeToday.toLocaleString()}</b><small>오늘 접속 또는 기능 사용</small></article>
+        <article><span>누적 로그인</span><b>{totalLogins.toLocaleString()}</b><small>회원 로그인 성공 횟수</small></article>
+        <article><span>사용 기록</span><b>{data.events.length.toLocaleString()}</b><small>최근 최대 1,000건</small></article>
       </div>
 
-      <div className="admin-grid">
-        <section className="admin-panel admin-system">
-          <header><div><b>시스템 상태</b><span>주요 기능의 현재 상태입니다.</span></div><strong><i /> ALL SYSTEMS NORMAL</strong></header>
-          <div>{modules.map((module) => <article key={module.name}><i>●</i><div><b>{module.name}</b><span>{module.detail}</span></div><strong>{module.state}</strong></article>)}</div>
-        </section>
+      {!data.available && <div className="admin-data-notice">중앙 회원 저장소가 연결되지 않은 배포 환경입니다. Sites 운영 주소에서 전체 회원 기록을 확인하세요.</div>}
+      {error && <div className="admin-data-error" role="alert">{error}<button type="button" onClick={loadData}>다시 시도</button></div>}
 
-        <section className="admin-panel admin-access">
-          <header><div><b>접근 권한</b><span>현재 로그인 세션</span></div></header>
-          <dl><div><dt>권한 등급</dt><dd>최고 관리자</dd></div><div><dt>로그인 방식</dt><dd>관리자 아이디</dd></div><div><dt>관리자 페이지</dt><dd className="allowed">접근 허용</dd></div><div><dt>일반 사용자 화면</dt><dd className="allowed">접근 허용</dd></div></dl>
-          <p>관리자 자격 증명은 서버 환경에서만 확인되며 화면이나 브라우저 저장소에 비밀번호가 노출되지 않습니다.</p>
-        </section>
+      <section className="admin-table-panel member-list-panel">
+        <header><div><b>가입 회원 목록</b><span>최근 활동 순으로 표시됩니다.</span></div><div className="admin-table-tools"><label><span>회원 검색</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="이름 또는 이메일" /></label><button type="button" onClick={loadData} disabled={loading}>{loading ? "불러오는 중" : "새로고침"}</button></div></header>
+        <div className="admin-table-scroll"><table><thead><tr><th>회원</th><th>가입 방식</th><th>가입일</th><th>최근 활동</th><th>로그인</th><th>상태</th></tr></thead><tbody>{visibleMembers.map((member) => <tr key={member.id}><td><div className="member-cell"><i>{member.name.slice(0, 1).toUpperCase()}</i><span><b>{member.name}</b><small>{member.email}</small></span></div></td><td><span className={`provider-badge ${member.provider}`}>{providerLabel(member.provider)}</span></td><td>{dateTime(member.createdAt)}</td><td>{dateTime(member.lastSeenAt)}</td><td>{member.loginCount.toLocaleString()}회</td><td><span className="member-active">활성</span></td></tr>)}</tbody></table>{!loading && visibleMembers.length === 0 && <p className="admin-empty">{query ? "검색 결과가 없습니다." : "아직 가입된 회원이 없습니다."}</p>}</div>
+      </section>
 
-        <section className="admin-panel admin-actions">
-          <header><div><b>운영 바로가기</b><span>관리자 권한으로 모든 작업 화면을 열 수 있습니다.</span></div></header>
-          <div><button type="button" onClick={onOpenHome}><i>⌂</i><span><b>HOME</b><small>전체 현황으로 이동</small></span><strong>→</strong></button><button type="button" onClick={onOpenLive}><i>◉</i><span><b>실시간 영상 계수</b><small>영상 및 카메라 확인</small></span><strong>→</strong></button><button type="button" onClick={onOpenCounter}><i>＋</i><span><b>차량 카운팅</b><small>기록과 클릭 로그 관리</small></span><strong>→</strong></button></div>
-        </section>
-
-        <section className="admin-panel admin-storage">
-          <header><div><b>데이터 범위</b><span>현재 저장 구조 안내</span></div></header>
-          <div className="storage-ring" style={{ "--storage-progress": `${Math.min(100, summary.storageBytes / 50000)}%` } as React.CSSProperties}><b>{compactBytes(summary.storageBytes)}</b><span>LOCAL DATA</span></div>
-          <p>조사 기록은 각 사용자의 브라우저에 저장됩니다. 따라서 이 화면의 통계는 현재 관리자 기기의 기록만 집계합니다.</p>
-        </section>
-      </div>
+      <section className="admin-table-panel usage-list-panel">
+        <header><div><b>사용 기록</b><span>회원가입, 로그인과 주요 화면 진입 기록입니다.</span></div><label className="usage-filter"><span>기록 종류</span><select value={eventFilter} onChange={(event) => setEventFilter(event.target.value)}><option value="all">전체 기록</option><option value="signup">회원가입</option><option value="login">로그인</option><option value="page_view">화면 사용</option></select></label></header>
+        <div className="admin-table-scroll"><table><thead><tr><th>시각</th><th>회원</th><th>활동</th><th>상세</th></tr></thead><tbody>{visibleEvents.map((event) => <tr key={event.id}><td>{dateTime(event.createdAt)}</td><td><b>{event.memberName}</b><small className="event-email">{event.memberEmail}</small></td><td><span className={`event-badge ${event.eventType}`}>{eventLabel(event)}</span></td><td>{event.detail}</td></tr>)}</tbody></table>{!loading && visibleEvents.length === 0 && <p className="admin-empty">표시할 사용 기록이 없습니다.</p>}</div>
+      </section>
     </section>
   );
 }
