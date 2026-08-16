@@ -169,6 +169,7 @@ const setNumericCell = (document: XMLDocument, row: Element, column: string, row
 
 export default function DashboardClient({ user, authProvider }: { user: { displayName: string; email: string; role: "admin" | "user" }; authProvider: "chatgpt" | "password" }) {
   const [workspaceView, setWorkspaceView] = useState<"home" | "preprocess" | "live" | "counter" | "admin">("home");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const mode: Mode = "custom";
   const [library, setLibrary] = useState<RecordLibrary>(() => createEmptyLibrary().library as RecordLibrary);
   const [activeRecordIds, setActiveRecordIds] = useState<ActiveRecordIds>(() => createEmptyLibrary().activeRecordIds as ActiveRecordIds);
@@ -746,9 +747,10 @@ export default function DashboardClient({ user, authProvider }: { user: { displa
   };
 
   return (
-    <main className="dashboard-app">
+    <main className={`dashboard-app ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="dashboard-sidebar">
         <div className="dashboard-brand"><span>IC</span><div><b>Intersection</b><small>CONTROL DASHBOARD</small></div></div>
+        <button type="button" className="sidebar-collapse" onClick={() => setSidebarCollapsed((current) => !current)} aria-label={sidebarCollapsed ? "사이드바 펼치기" : "사이드바 접기"} title={sidebarCollapsed ? "사이드바 펼치기" : "사이드바 접기"}>{sidebarCollapsed ? "›" : "‹"}</button>
         <nav aria-label="대시보드 메뉴">
           <section className="nav-group"><h2>NAVIGATION</h2><button type="button" className={workspaceView === "home" ? "active" : ""} onClick={() => setWorkspaceView("home")}><i>⌂</i><span><b>HOME</b><small>현황 · 빠른 실행</small></span></button></section>
           <section className="nav-group"><h2>PROJECTS</h2><button type="button" className={workspaceView === "preprocess" ? "active" : ""} onClick={() => setWorkspaceView("preprocess")}><i>▶</i><span><b>영상 전처리</b><small>원본 폴더 · 3배속 변환</small></span></button><button type="button" className={workspaceView === "live" ? "active" : ""} onClick={() => setWorkspaceView("live")}><i>◉</i><span><b>실시간 영상 계수</b><small>영상 확인 · 동시 계수</small></span></button><button type="button" className={workspaceView === "counter" ? "active" : ""} onClick={() => setWorkspaceView("counter")}><i>＋</i><span><b>차량 카운팅</b><small>15분 기록 · 클릭 로그</small></span></button></section>
@@ -759,7 +761,7 @@ export default function DashboardClient({ user, authProvider }: { user: { displa
           <div className="account-menu">
             <header><span>{user.displayName.slice(0, 1).toUpperCase()}</span><div><small>{user.role === "admin" ? "최고 관리자" : "현재 로그인 계정"}</small><b>{user.displayName}</b><p>{user.email}</p></div></header>
             {user.role === "admin" && <button type="button" className="account-admin-link" onClick={() => setWorkspaceView("admin")}><span>◆</span><div><b>관리자 페이지</b><small>회원 목록과 사용 기록 확인</small></div></button>}
-            <a className="account-switch" href={authProvider === "password" ? "/api/auth/logout" : "/signout-with-chatgpt?return_to=%2Fsignin-with-chatgpt%3Freturn_to%3D%252F"}><span>⇄</span><div><b>계정 전환</b><small>로그아웃 후 다른 계정으로 로그인</small></div></a>
+            <a className="account-switch" href={authProvider === "password" ? "/api/auth/logout" : "/signout-with-chatgpt?return_to=%2F"}><span>⇄</span><div><b>계정 전환</b><small>로그아웃 후 다른 계정으로 로그인</small></div></a>
             <a className="account-signout" href={authProvider === "password" ? "/api/auth/logout" : "/signout-with-chatgpt?return_to=%2F"}><span>↗</span><b>로그아웃</b></a>
           </div>
         </details>

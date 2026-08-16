@@ -202,8 +202,12 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(dashboard, /sidebar-account-copy/);
   assert.match(dashboard, /계정 설정 열기/);
   assert.match(dashboard, /계정 전환/);
+  assert.match(dashboard, /sidebarCollapsed/);
+  assert.match(dashboard, /사이드바 접기/);
+  assert.match(dashboard, /사이드바 펼치기/);
   assert.match(dashboard, /현재 로그인 계정/);
   assert.match(dashboard, /signout-with-chatgpt/);
+  assert.doesNotMatch(dashboard, /return_to=%2Fsignin-with-chatgpt/);
   assert.match(dashboard, /api\/auth\/logout/);
   assert.match(preprocess, /webkitdirectory/);
   assert.match(preprocess, /전처리 실행 파일 만들기/);
@@ -240,6 +244,8 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(css, /--font-korean/);
   assert.doesNotMatch(css, /font-display/);
   assert.match(css, /\.dashboard-settings/);
+  assert.match(css, /\.sidebar-collapsed/);
+  assert.match(css, /\.sidebar-collapse/);
   assert.match(css, /\.account-menu/);
   assert.match(css, /\.dashboard-home/);
   assert.match(css, /\.home-stats/);
