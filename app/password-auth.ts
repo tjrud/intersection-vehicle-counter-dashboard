@@ -7,6 +7,7 @@ export const AUTH_COOKIE_OPTIONS = { httpOnly: true, secure: process.env.NODE_EN
 const SESSION_SECONDS = 60 * 60 * 24 * 7;
 const ACCOUNT_SECONDS = 60 * 60 * 24 * 365;
 type LocalAccount = { name: string; email: string; salt: string; passwordHash: string };
+export type DashboardRole = "admin" | "user";
 
 const signature = (value: string) => createHmac("sha256", process.env.AUTH_SECRET ?? "").update(value).digest("base64url");
 const safeEqual = (left: string, right: string) => {
@@ -17,6 +18,10 @@ const safeEqual = (left: string, right: string) => {
 const passwordHash = (password: string, salt: string) => scryptSync(password, salt, 32).toString("base64url");
 
 export function passwordAuthConfigured() { return Boolean(process.env.AUTH_SECRET); }
+
+export function adminAuthConfigured() {
+  return Boolean(process.env.ADMIN_ID && process.env.ADMIN_PASSWORD);
+}
 
 export function createPasswordSession(email: string) {
   const expires = Math.floor(Date.now() / 1000) + SESSION_SECONDS;
@@ -55,16 +60,23 @@ export async function getPasswordUser() {
   const payload = `${encodedEmail}.${expiresText}`;
   if (!safeEqual(suppliedSignature, signature(payload)) || Number(expiresText) <= Math.floor(Date.now() / 1000)) return null;
   const email = Buffer.from(encodedEmail, "base64url").toString("utf8");
+  const adminId = process.env.ADMIN_ID?.trim().toLowerCase();
+  if (adminId && email.trim().toLowerCase() === adminId && adminAuthConfigured()) {
+    const displayName = process.env.ADMIN_NAME?.trim() || "관리자";
+    return { userId: `admin:${adminId}`, displayName, email: process.env.ADMIN_ID!.trim(), fullName: displayName, role: "admin" as DashboardRole };
+  }
   const localAccount = await getLocalAccount();
-  if (localAccount?.email === email.toLowerCase()) return { userId: `vercel:${email}`, displayName: localAccount.name, email, fullName: localAccount.name };
+  if (localAccount?.email === email.toLowerCase()) return { userId: `vercel:${email}`, displayName: localAccount.name, email, fullName: localAccount.name, role: "user" as DashboardRole };
   if (email.toLowerCase() !== process.env.DASHBOARD_EMAIL?.toLowerCase()) return null;
   const displayName = process.env.DASHBOARD_NAME?.trim() || email.split("@")[0];
-  return { userId: `vercel:${email}`, displayName, email, fullName: displayName };
+  return { userId: `vercel:${email}`, displayName, email, fullName: displayName, role: "user" as DashboardRole };
 }
 
 export async function validPasswordCredentials(email: string, password: string) {
   if (!passwordAuthConfigured()) return false;
   const normalizedEmail = email.trim().toLowerCase();
+  const adminId = process.env.ADMIN_ID?.trim().toLowerCase();
+  if (adminId && normalizedEmail === adminId && adminAuthConfigured()) return safeEqual(password, process.env.ADMIN_PASSWORD ?? "");
   const localAccount = await getLocalAccount();
   if (localAccount?.email === normalizedEmail) return safeEqual(passwordHash(password, localAccount.salt), localAccount.passwordHash);
   return normalizedEmail === process.env.DASHBOARD_EMAIL?.toLowerCase() && safeEqual(password, process.env.DASHBOARD_PASSWORD ?? "");

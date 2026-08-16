@@ -7,6 +7,7 @@ export type ChatGPTUser = {
   displayName: string;
   email: string;
   fullName: string | null;
+  role: "admin" | "user";
 };
 
 const USER_ID_HEADER = "oai-authenticated-user-id";
@@ -29,7 +30,7 @@ export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
     ? safeDecodeURIComponent(encodedFullName)
     : null;
 
-  return { userId, displayName: fullName ?? email, email, fullName };
+  return { userId, displayName: fullName ?? email, email, fullName, role: "user" };
 }
 
 export async function requireChatGPTUser(returnTo: string): Promise<ChatGPTUser> {

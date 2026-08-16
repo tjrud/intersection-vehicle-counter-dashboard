@@ -160,12 +160,13 @@ test("카운터 조작마다 클릭 로그를 저장하고 내보낸다", async 
 });
 
 test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로 제공한다", async () => {
-  const [entry, loginVisual, dashboard, preprocess, liveCounting, auth, passwordAuth, css] = await Promise.all([
+  const [entry, loginVisual, dashboard, preprocess, liveCounting, adminWorkspace, auth, passwordAuth, css] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("app/LoginVisual.tsx", root), "utf8"),
     readFile(new URL("app/DashboardClient.tsx", root), "utf8"),
     readFile(new URL("app/PreprocessWorkspace.tsx", root), "utf8"),
     readFile(new URL("app/LiveCountingWorkspace.tsx", root), "utf8"),
+    readFile(new URL("app/AdminWorkspace.tsx", root), "utf8"),
     readFile(new URL("app/chatgpt-auth.ts", root), "utf8"),
     readFile(new URL("app/password-auth.ts", root), "utf8"),
     readFile(new URL("app/globals.css", root), "utf8"),
@@ -184,6 +185,9 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(auth, /signin-with-chatgpt/);
   assert.match(passwordAuth, /scryptSync/);
   assert.match(passwordAuth, /DASHBOARD_ACCOUNT_COOKIE/);
+  assert.match(passwordAuth, /ADMIN_ID/);
+  assert.match(passwordAuth, /ADMIN_PASSWORD/);
+  assert.match(entry, /이메일 또는 관리자 아이디/);
   assert.match(dashboard, /영상 전처리/);
   assert.match(dashboard, /차량 카운팅/);
   assert.match(dashboard, /현황 · 빠른 실행/);
@@ -202,6 +206,12 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(preprocess, /전처리 실행 파일 만들기/);
   assert.match(preprocess, /PowerShell · FFmpeg/);
   assert.match(dashboard, /workspaceView === "live"/);
+  assert.match(dashboard, /workspaceView === "admin"/);
+  assert.match(dashboard, /user\.role === "admin"/);
+  assert.match(dashboard, /관리자 페이지/);
+  assert.match(adminWorkspace, /ADMINISTRATION/);
+  assert.match(adminWorkspace, /시스템 상태/);
+  assert.match(adminWorkspace, /접근 권한/);
   assert.match(dashboard, /실시간 영상 계수/);
   assert.match(liveCounting, /navigator\.mediaDevices\.getUserMedia/);
   assert.match(liveCounting, /영상 파일 열기/);
@@ -211,6 +221,7 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(css, /\.dashboard-app/);
   assert.match(css, /\.preprocess-workspace/);
   assert.match(css, /\.live-count-workspace/);
+  assert.match(css, /\.admin-workspace/);
   assert.match(css, /\.login-page/);
   assert.match(css, /\.intersection-art/);
   assert.match(css, /@keyframes holo-spin/);

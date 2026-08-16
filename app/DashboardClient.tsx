@@ -7,6 +7,7 @@ import { summarizeTwoWayHours } from "./excel-mapping.mjs";
 import { createEmptyLibrary, migrateToLibrary, shiftRecords } from "./record-storage.mjs";
 import PreprocessWorkspace from "./PreprocessWorkspace";
 import LiveCountingWorkspace from "./LiveCountingWorkspace";
+import AdminWorkspace from "./AdminWorkspace";
 
 const fullMode = [
   { id: 9, area: "n1" }, { id: 8, area: "n2" }, { id: 7, area: "n3" },
@@ -166,8 +167,8 @@ const setNumericCell = (document: XMLDocument, row: Element, column: string, row
   cell.appendChild(valueNode);
 };
 
-export default function DashboardClient({ user, authProvider }: { user: { displayName: string; email: string }; authProvider: "chatgpt" | "password" }) {
-  const [workspaceView, setWorkspaceView] = useState<"home" | "preprocess" | "live" | "counter">("home");
+export default function DashboardClient({ user, authProvider }: { user: { displayName: string; email: string; role: "admin" | "user" }; authProvider: "chatgpt" | "password" }) {
+  const [workspaceView, setWorkspaceView] = useState<"home" | "preprocess" | "live" | "counter" | "admin">("home");
   const mode: Mode = "custom";
   const [library, setLibrary] = useState<RecordLibrary>(() => createEmptyLibrary().library as RecordLibrary);
   const [activeRecordIds, setActiveRecordIds] = useState<ActiveRecordIds>(() => createEmptyLibrary().activeRecordIds as ActiveRecordIds);
@@ -268,6 +269,16 @@ export default function DashboardClient({ user, authProvider }: { user: { displa
   const homeSavedSlots = Object.keys(records).length;
   const homeVehicleTotal = Object.values(records).reduce((totalValue, row) => totalValue + Object.values(row).reduce((rowTotal, value) => rowTotal + value, 0), 0);
   const homeRecentLogs = [...(activeRecordSet.clickLogs ?? [])].slice(-5).reverse();
+  const adminSummary = useMemo(() => {
+    const recordSets = Object.values(library).flat();
+    return {
+      recordSets: recordSets.length,
+      savedSlots: recordSets.reduce((sum, recordSet) => sum + Object.keys(recordSet.records).length, 0),
+      clickLogs: recordSets.reduce((sum, recordSet) => sum + (recordSet.clickLogs?.length ?? 0), 0),
+      vehicleTotal: recordSets.reduce((sum, recordSet) => sum + Object.values(recordSet.records).reduce((recordTotal, row) => recordTotal + Object.values(row).reduce((rowTotal, value) => rowTotal + value, 0), 0), 0),
+      storageBytes: new TextEncoder().encode(JSON.stringify({ library, activeRecordIds })).length,
+    };
+  }, [library, activeRecordIds]);
 
   const updateActiveRecordSet = (update: (recordSet: RecordSet) => RecordSet) => {
     setLibrary((current) => ({
@@ -741,18 +752,20 @@ export default function DashboardClient({ user, authProvider }: { user: { displa
         <nav aria-label="대시보드 메뉴">
           <section className="nav-group"><h2>NAVIGATION</h2><button type="button" className={workspaceView === "home" ? "active" : ""} onClick={() => setWorkspaceView("home")}><i>⌂</i><span><b>HOME</b><small>현황 · 빠른 실행</small></span></button></section>
           <section className="nav-group"><h2>PROJECTS</h2><button type="button" className={workspaceView === "preprocess" ? "active" : ""} onClick={() => setWorkspaceView("preprocess")}><i>▶</i><span><b>영상 전처리</b><small>원본 폴더 · 3배속 변환</small></span></button><button type="button" className={workspaceView === "live" ? "active" : ""} onClick={() => setWorkspaceView("live")}><i>◉</i><span><b>실시간 영상 계수</b><small>영상 확인 · 동시 계수</small></span></button><button type="button" className={workspaceView === "counter" ? "active" : ""} onClick={() => setWorkspaceView("counter")}><i>＋</i><span><b>차량 카운팅</b><small>15분 기록 · 클릭 로그</small></span></button></section>
+          {user.role === "admin" && <section className="nav-group nav-admin"><h2>ADMINISTRATION</h2><button type="button" className={workspaceView === "admin" ? "active" : ""} onClick={() => setWorkspaceView("admin")}><i>◆</i><span><b>관리자 페이지</b><small>운영 상태 · 접근 권한</small></span></button></section>}
         </nav>
         <details className="dashboard-settings">
           <summary aria-label="계정 설정 열기"><span className="sidebar-avatar">{user.displayName.slice(0, 1).toUpperCase()}</span><span className="sidebar-account-copy"><b>{user.displayName}</b><small>{user.email}</small></span><i aria-hidden="true">⚙</i></summary>
           <div className="account-menu">
-            <header><span>{user.displayName.slice(0, 1).toUpperCase()}</span><div><small>현재 로그인 계정</small><b>{user.displayName}</b><p>{user.email}</p></div></header>
+            <header><span>{user.displayName.slice(0, 1).toUpperCase()}</span><div><small>{user.role === "admin" ? "최고 관리자" : "현재 로그인 계정"}</small><b>{user.displayName}</b><p>{user.email}</p></div></header>
+            {user.role === "admin" && <button type="button" className="account-admin-link" onClick={() => setWorkspaceView("admin")}><span>◆</span><div><b>관리자 페이지</b><small>운영 상태와 권한 확인</small></div></button>}
             <a className="account-switch" href={authProvider === "password" ? "/api/auth/logout" : "/signout-with-chatgpt?return_to=%2Fsignin-with-chatgpt%3Freturn_to%3D%252F"}><span>⇄</span><div><b>계정 전환</b><small>로그아웃 후 다른 계정으로 로그인</small></div></a>
             <a className="account-signout" href={authProvider === "password" ? "/api/auth/logout" : "/signout-with-chatgpt?return_to=%2F"}><span>↗</span><b>로그아웃</b></a>
           </div>
         </details>
       </aside>
       <section className="dashboard-stage">
-      {workspaceView === "home" ? <section className="dashboard-home">
+      {workspaceView === "admin" && user.role === "admin" ? <AdminWorkspace displayName={user.displayName} adminId={user.email} summary={adminSummary} onOpenHome={() => setWorkspaceView("home")} onOpenLive={() => setWorkspaceView("live")} onOpenCounter={() => setWorkspaceView("counter")} /> : workspaceView === "home" ? <section className="dashboard-home">
         <header className="home-hero"><div><p>TRAFFIC OPERATIONS</p><h1>{user.displayName}님, 오늘 조사도 정확하게.</h1><span>영상 준비부터 현장 카운팅과 기록 내보내기까지 한 화면에서 이어가세요.</span></div><div className="home-clock"><small>현재 기록 구간</small><b>{slots[Number(slot)].label}</b><span>{savedCurrent ? "저장 완료" : "작성 준비"}</span></div></header>
         <div className="home-stats"><article><span>저장된 시간대</span><b>{homeSavedSlots}<small>/ 96</small></b><i><em style={{ width: `${Math.round(homeSavedSlots / 96 * 100)}%` }} /></i></article><article><span>누적 통행량</span><b>{homeVehicleTotal.toLocaleString()}<small>대</small></b><p>{activeRecordSet.name}</p></article><article><span>클릭 기록</span><b>{activeRecordSet.clickLogs.length.toLocaleString()}<small>건</small></b><p>모든 +/− 조작 기록</p></article></div>
         <div className="home-grid"><section className="home-actions"><header><div><b>빠른 실행</b><span>작업을 선택해 바로 시작하세요.</span></div></header><button type="button" onClick={() => setWorkspaceView("live")}><i>03</i><div><b>실시간 영상 계수</b><span>영상 확인 · {activeRecordSet.name} · {slots[Number(slot)].label}</span></div><strong>→</strong></button><button type="button" onClick={() => setWorkspaceView("counter")}><i>02</i><div><b>차량 카운팅 이어하기</b><span>{activeRecordSet.name} · {slots[Number(slot)].label}</span></div><strong>→</strong></button><button type="button" onClick={() => setWorkspaceView("preprocess")}><i>01</i><div><b>새 영상 전처리</b><span>로컬 영상 선택 · 24시간 · 3배속</span></div><strong>→</strong></button></section><section className="home-activity"><header><div><b>최근 활동</b><span>현재 기록의 마지막 조작</span></div><button type="button" onClick={() => setWorkspaceView("counter")}>전체 보기</button></header><div>{homeRecentLogs.length ? homeRecentLogs.map((log, index) => <article key={`${log.t}-${index}`}><time>{formatClickTime(log.t).slice(11, 19)}</time><span className={log.d > 0 ? "plus" : "minus"}>{log.d > 0 ? "+1" : "−1"}</span><b>{log.n}번 · {movementName(log.m ?? movementForCounter(log.n))}</b><small>{log.b} → {log.a}</small></article>) : <p>아직 클릭 기록이 없습니다.<br />차량 카운팅을 시작하면 여기에 표시됩니다.</p>}</div></section></div>
