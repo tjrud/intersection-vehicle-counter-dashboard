@@ -160,11 +160,12 @@ test("카운터 조작마다 클릭 로그를 저장하고 내보낸다", async 
 });
 
 test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로 제공한다", async () => {
-  const [entry, loginVisual, dashboard, preprocess, auth, passwordAuth, css] = await Promise.all([
+  const [entry, loginVisual, dashboard, preprocess, liveCounting, auth, passwordAuth, css] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("app/LoginVisual.tsx", root), "utf8"),
     readFile(new URL("app/DashboardClient.tsx", root), "utf8"),
     readFile(new URL("app/PreprocessWorkspace.tsx", root), "utf8"),
+    readFile(new URL("app/LiveCountingWorkspace.tsx", root), "utf8"),
     readFile(new URL("app/chatgpt-auth.ts", root), "utf8"),
     readFile(new URL("app/password-auth.ts", root), "utf8"),
     readFile(new URL("app/globals.css", root), "utf8"),
@@ -200,8 +201,16 @@ test("로그인, 영상 전처리, 차량 카운팅을 하나의 대시보드로
   assert.match(preprocess, /webkitdirectory/);
   assert.match(preprocess, /전처리 실행 파일 만들기/);
   assert.match(preprocess, /PowerShell · FFmpeg/);
+  assert.match(dashboard, /workspaceView === "live"/);
+  assert.match(dashboard, /실시간 영상 계수/);
+  assert.match(liveCounting, /navigator\.mediaDevices\.getUserMedia/);
+  assert.match(liveCounting, /영상 파일 열기/);
+  assert.match(liveCounting, /재생속도/);
+  assert.match(liveCounting, /props\.onCount/);
+  assert.match(liveCounting, /props\.onSaveNext/);
   assert.match(css, /\.dashboard-app/);
   assert.match(css, /\.preprocess-workspace/);
+  assert.match(css, /\.live-count-workspace/);
   assert.match(css, /\.login-page/);
   assert.match(css, /\.intersection-art/);
   assert.match(css, /@keyframes holo-spin/);

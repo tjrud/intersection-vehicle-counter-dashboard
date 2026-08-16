@@ -9,7 +9,7 @@ const notoSansKr = Noto_Sans_KR({
 });
 export const metadata: Metadata = {
   title: "교차로 차량 조사 대시보드",
-  description: "로그인 후 영상 전처리와 차량 카운팅을 한 곳에서 관리합니다.",
+  description: "로그인 후 영상 전처리, 실시간 영상 계수, 차량 카운팅을 한 곳에서 관리합니다.",
   icons: { icon: "/favicon.svg" },
 };
 
