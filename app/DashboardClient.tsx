@@ -759,10 +759,10 @@ export default function DashboardClient({ user, authProvider }: { user: { displa
           {user.role === "admin" && <section className="nav-group nav-admin"><h2>ADMINISTRATION</h2><button type="button" className={workspaceView === "admin" ? "active" : ""} onClick={() => setWorkspaceView("admin")}><i>◆</i><span><b>관리자 페이지</b><small>회원 목록 · 사용 기록</small></span></button></section>}
         </nav>
         <details className="dashboard-settings" ref={sidebarSettingsRef}>
-          <summary aria-label="계정 및 대시보드 설정 열기"><span className="sidebar-avatar">{user.displayName.slice(0, 1).toUpperCase()}</span><span className="sidebar-account-copy"><b>{user.displayName}</b><small>{user.email}</small></span><i aria-hidden="true">⚙</i></summary>
+          <summary aria-label="계정 및 환경 설정 열기"><span className="sidebar-avatar">{user.displayName.slice(0, 1).toUpperCase()}</span><span className="sidebar-account-copy"><b>{user.displayName}</b><small>{user.email}</small></span><i aria-hidden="true">⚙</i></summary>
           <div className="account-menu">
             <header><span>{user.displayName.slice(0, 1).toUpperCase()}</span><div><small>{user.role === "admin" ? "최고 관리자" : "현재 로그인 계정"}</small><b>{user.displayName}</b><p>{user.email}</p></div></header>
-            <button type="button" className="account-dashboard-settings" onClick={() => { sidebarSettingsRef.current?.removeAttribute("open"); setShowSettings(true); }}><span>⚙</span><div><b>대시보드 설정</b><small>테마 · 조작 방식 · 소리 · 볼륨</small></div></button>
+            <button type="button" className="account-dashboard-settings" onClick={() => { sidebarSettingsRef.current?.removeAttribute("open"); setShowSettings(true); }}><span>⚙</span><div><b>환경 설정</b><small>테마 · 조작 방식 · 소리 · 볼륨</small></div></button>
             {user.role === "admin" && <button type="button" className="account-admin-link" onClick={() => setWorkspaceView("admin")}><span>◆</span><div><b>관리자 페이지</b><small>회원 목록과 사용 기록 확인</small></div></button>}
             <a className="account-switch" href={authProvider === "password" ? "/api/auth/logout" : "/signout-with-chatgpt?return_to=%2F"}><span>⇄</span><div><b>계정 전환</b><small>로그아웃 후 다른 계정으로 로그인</small></div></a>
             <a className="account-signout" href={authProvider === "password" ? "/api/auth/logout" : "/signout-with-chatgpt?return_to=%2F"}><span>↗</span><b>로그아웃</b></a>
@@ -847,8 +847,8 @@ export default function DashboardClient({ user, authProvider }: { user: { displa
 
       {showSettings && (
         <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && setShowSettings(false)}>
-          <section className="settings-modal" role="dialog" aria-modal="true" aria-label="대시보드 설정">
-            <header><div><h2>대시보드 설정</h2><p>모든 페이지의 화면과 차량 카운팅 조작·소리를 설정합니다</p></div><button type="button" className="settings-close" onClick={() => setShowSettings(false)} aria-label="닫기">×</button></header>
+          <section className="settings-modal" role="dialog" aria-modal="true" aria-label="환경 설정">
+            <header><div><h2>환경 설정</h2><p>모든 페이지의 화면과 차량 카운팅 조작·소리를 설정합니다</p></div><button type="button" className="settings-close" onClick={() => setShowSettings(false)} aria-label="닫기">×</button></header>
             <div className="settings-body">
               <fieldset><legend>테마 색</legend><div className="theme-options">
                 <button type="button" className={theme === "light" ? "selected" : ""} onClick={() => setTheme("light")}><i className="swatch light" /><span><b>흰색</b><small>밝고 선명하게</small></span></button>
