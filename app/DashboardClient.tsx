@@ -205,6 +205,7 @@ export default function DashboardClient({ user, authProvider }: { user: { displa
   const audioContextRef = useRef<AudioContext | null>(null);
   const compressorRef = useRef<DynamicsCompressorNode | null>(null);
   const nextSoundAtRef = useRef(0);
+  const sidebarSettingsRef = useRef<HTMLDetailsElement | null>(null);
 
   useEffect(() => {
     if (user.role === "admin") return;
@@ -757,10 +758,11 @@ export default function DashboardClient({ user, authProvider }: { user: { displa
           <section className="nav-group"><h2>PROJECTS</h2><button type="button" className={workspaceView === "preprocess" ? "active" : ""} onClick={() => setWorkspaceView("preprocess")}><i>▶</i><span><b>영상 전처리</b><small>원본 폴더 · 3배속 변환</small></span></button><button type="button" className={workspaceView === "ai" ? "active" : ""} onClick={() => setWorkspaceView("ai")}><i>AI</i><span><b>AI 차량 분석</b><small>로컬 GPU · 유입/유출</small></span></button><button type="button" className={workspaceView === "live" ? "active" : ""} onClick={() => setWorkspaceView("live")}><i>◉</i><span><b>실시간 영상 계수</b><small>영상 확인 · 동시 계수</small></span></button><button type="button" className={workspaceView === "counter" ? "active" : ""} onClick={() => setWorkspaceView("counter")}><i>＋</i><span><b>차량 카운팅</b><small>15분 기록 · 클릭 로그</small></span></button></section>
           {user.role === "admin" && <section className="nav-group nav-admin"><h2>ADMINISTRATION</h2><button type="button" className={workspaceView === "admin" ? "active" : ""} onClick={() => setWorkspaceView("admin")}><i>◆</i><span><b>관리자 페이지</b><small>회원 목록 · 사용 기록</small></span></button></section>}
         </nav>
-        <details className="dashboard-settings">
-          <summary aria-label="계정 설정 열기"><span className="sidebar-avatar">{user.displayName.slice(0, 1).toUpperCase()}</span><span className="sidebar-account-copy"><b>{user.displayName}</b><small>{user.email}</small></span><i aria-hidden="true">⚙</i></summary>
+        <details className="dashboard-settings" ref={sidebarSettingsRef}>
+          <summary aria-label="계정 및 대시보드 설정 열기"><span className="sidebar-avatar">{user.displayName.slice(0, 1).toUpperCase()}</span><span className="sidebar-account-copy"><b>{user.displayName}</b><small>{user.email}</small></span><i aria-hidden="true">⚙</i></summary>
           <div className="account-menu">
             <header><span>{user.displayName.slice(0, 1).toUpperCase()}</span><div><small>{user.role === "admin" ? "최고 관리자" : "현재 로그인 계정"}</small><b>{user.displayName}</b><p>{user.email}</p></div></header>
+            <button type="button" className="account-dashboard-settings" onClick={() => { sidebarSettingsRef.current?.removeAttribute("open"); setShowSettings(true); }}><span>⚙</span><div><b>대시보드 설정</b><small>테마 · 조작 방식 · 소리 · 볼륨</small></div></button>
             {user.role === "admin" && <button type="button" className="account-admin-link" onClick={() => setWorkspaceView("admin")}><span>◆</span><div><b>관리자 페이지</b><small>회원 목록과 사용 기록 확인</small></div></button>}
             <a className="account-switch" href={authProvider === "password" ? "/api/auth/logout" : "/signout-with-chatgpt?return_to=%2F"}><span>⇄</span><div><b>계정 전환</b><small>로그아웃 후 다른 계정으로 로그인</small></div></a>
             <a className="account-signout" href={authProvider === "password" ? "/api/auth/logout" : "/signout-with-chatgpt?return_to=%2F"}><span>↗</span><b>로그아웃</b></a>
@@ -783,7 +785,6 @@ export default function DashboardClient({ user, authProvider }: { user: { displa
         <div className="time-field wide"><label htmlFor="record-slot">기록 시간</label><select id="record-slot" value={slot} onChange={(e) => selectSlot(e.target.value)}>{slots.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></div>
         <span className={`save-status ${savedCurrent ? "saved" : "draft"}`}>{savedCurrent ? "저장된 구간" : "작성 중"}</span>
         <button type="button" className="sheet-open" onClick={() => setShowSheet(true)}>저장 기록 보기</button>
-        <button type="button" className="settings-open" onClick={() => setShowSettings(true)}>설정</button>
       </section>
 
       <section className="custom-layout-toolbar"><div><b>{customConfig.name}</b><span>총 {customPositions.length}차선 · 저장 기록마다 다른 배치를 사용할 수 있습니다</span></div><button type="button" onClick={openCustomEditor}>교차로 구성</button></section>
@@ -842,11 +843,12 @@ export default function DashboardClient({ user, authProvider }: { user: { displa
           </section>
         </div>
       )}
+      </div>}
 
       {showSettings && (
         <div className="modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && setShowSettings(false)}>
-          <section className="settings-modal" role="dialog" aria-modal="true" aria-label="설정">
-            <header><div><h2>설정</h2><p>화면과 버튼 소리를 조절합니다</p></div><button type="button" className="settings-close" onClick={() => setShowSettings(false)} aria-label="닫기">×</button></header>
+          <section className="settings-modal" role="dialog" aria-modal="true" aria-label="대시보드 설정">
+            <header><div><h2>대시보드 설정</h2><p>모든 페이지의 화면과 차량 카운팅 조작·소리를 설정합니다</p></div><button type="button" className="settings-close" onClick={() => setShowSettings(false)} aria-label="닫기">×</button></header>
             <div className="settings-body">
               <fieldset><legend>테마 색</legend><div className="theme-options">
                 <button type="button" className={theme === "light" ? "selected" : ""} onClick={() => setTheme("light")}><i className="swatch light" /><span><b>흰색</b><small>밝고 선명하게</small></span></button>
@@ -865,7 +867,6 @@ export default function DashboardClient({ user, authProvider }: { user: { displa
           </section>
         </div>
       )}
-      </div>}
       </section>
     </main>
   );
